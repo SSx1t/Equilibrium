@@ -7,6 +7,7 @@ import { DistrictPanel } from "@/components/DistrictPanel";
 import { Header, type NavView } from "@/components/Header";
 import { InvestmentPanel } from "@/components/InvestmentPanel";
 import { Legend } from "@/components/Legend";
+import { ReportsView } from "@/components/ReportsView";
 import type { LayerMode, PlacedPin } from "@/components/MapView";
 import {
   DEFAULT_SIM,
@@ -54,7 +55,7 @@ export default function Home() {
   const [briefingSignal, setBriefingSignal] = useState(0);
 
   const [districts, setDistricts] = useState<DistrictSummary[]>([]);
-  const [layer, setLayer] = useState<LayerMode>("both");
+  const [layer, setLayer] = useState<LayerMode>("choropleth");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const [simByDistrict, setSimByDistrict] = useState<Record<string, SimState>>({});
@@ -336,15 +337,23 @@ export default function Home() {
                         )}
                     </p>
                   </div>
-                  <span
-                    className="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold"
-                    style={{
-                      background: gapColorA(liveGap, 0.16),
-                      color: gapColor(liveGap),
-                    }}
-                  >
-                    Gap {liveGap.toFixed(0)}/100
-                  </span>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span
+                      className="rounded-full px-2.5 py-1 text-xs font-semibold transition-colors"
+                      style={{
+                        background: gapColorA(liveGap, 0.16),
+                        color: gapColor(liveGap),
+                      }}
+                    >
+                      Gap {liveGap.toFixed(0)}/100
+                    </span>
+                    {simLoading && (
+                      <span className="flex items-center gap-1 text-[10px] text-accent">
+                        <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-accent" />
+                        updating…
+                      </span>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <p className="text-sm text-muted">
@@ -441,7 +450,11 @@ export default function Home() {
           }}
         />
       ) : (
-        <RoadmapView view={view} />
+        <ReportsView
+          districts={sortedDistricts}
+          simByDistrict={simByDistrict}
+          initialDistrictId={selectedId}
+        />
       )}
     </div>
   );
@@ -551,23 +564,3 @@ function SimulationsView({
   );
 }
 
-function RoadmapView({ view }: { view: NavView }) {
-  const copy: Record<string, string> = {
-    reports:
-      "Saved AI briefings and district audits will live here. Generate a briefing in Analysis to see the underlying output.",
-    archives:
-      "Versioned snapshots of past scenarios and published reports will be archived here.",
-  };
-  return (
-    <div className="flex min-h-0 flex-1 items-center justify-center bg-background p-8">
-      <div className="max-w-md rounded-2xl border border-dashed border-border bg-panel p-10 text-center card-shadow">
-        <h1 className="text-xl font-bold capitalize tracking-tight">{view}</h1>
-        <p className="mt-2 text-sm text-muted">{copy[view] ?? ""}</p>
-        <p className="mt-4 text-xs text-muted">
-          The live engine (scoring, heatmap, ML investment, AI briefings) is in{" "}
-          <span className="font-medium text-foreground">Analysis</span>.
-        </p>
-      </div>
-    </div>
-  );
-}

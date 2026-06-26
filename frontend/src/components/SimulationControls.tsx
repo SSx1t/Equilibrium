@@ -62,7 +62,7 @@ export function SimulationControls({
   };
 
   return (
-    <div className="m-4 space-y-4 rounded-2xl border border-[#223150] bg-[#0d1626] p-4 text-[#e6edf6]">
+    <div className="m-4 space-y-4 rounded-2xl border border-border bg-panel-2 p-4 text-foreground">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-accent">
@@ -72,37 +72,37 @@ export function SimulationControls({
           </span>
           <span className="text-sm font-semibold">Simulation</span>
         </div>
-        <span className="rounded-full border border-[#2a3b5c] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#8a97ad]">
+        <span className="rounded-full border border-border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-muted">
           Experimental
         </span>
       </div>
-      <p className="-mt-2 text-[11px] text-[#8a97ad]">
+      <p className="-mt-2 text-[11px] text-muted">
         Hypothetical modelling, not real-time data.
       </p>
 
       {/* Modify amenities — quick (district centre) */}
       <div className="space-y-2">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8a97ad]">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">
           Modify amenities
         </div>
         {BUCKETS.map((b) => {
           const d = netDelta(state.overrides, b);
           return (
             <div key={b} className="flex items-center justify-between">
-              <span className="text-xs text-[#cdd6e4]">{BUCKET_LABEL[b]}</span>
+              <span className="text-xs text-foreground/85">{BUCKET_LABEL[b]}</span>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   disabled={disabled || !center}
                   onClick={() => addOverride(b, "remove")}
-                  className="h-6 w-6 rounded-md border border-[#2a3b5c] bg-[#111d33] text-sm leading-none text-[#cdd6e4] hover:bg-[#16243d] disabled:opacity-40"
+                  className="h-6 w-6 rounded-md border border-border bg-panel text-sm leading-none text-foreground/80 hover:bg-border disabled:opacity-40"
                   aria-label={`Remove ${b}`}
                 >
                   −
                 </button>
                 <span
                   className={`w-7 text-center font-mono text-xs ${
-                    d === 0 ? "text-[#6b7890]" : "text-accent"
+                    d === 0 ? "text-muted" : "text-accent"
                   }`}
                 >
                   {d > 0 ? "+" : ""}
@@ -112,7 +112,7 @@ export function SimulationControls({
                   type="button"
                   disabled={disabled || !center}
                   onClick={() => addOverride(b, "add")}
-                  className="h-6 w-6 rounded-md border border-[#2a3b5c] bg-[#111d33] text-sm leading-none text-[#cdd6e4] hover:bg-[#16243d] disabled:opacity-40"
+                  className="h-6 w-6 rounded-md border border-border bg-panel text-sm leading-none text-foreground/80 hover:bg-border disabled:opacity-40"
                   aria-label={`Add ${b}`}
                 >
                   +
@@ -124,14 +124,14 @@ export function SimulationControls({
       </div>
 
       {/* Place precisely on the map */}
-      <div className="space-y-2 rounded-xl border border-[#223150] bg-[#0a1322] p-3">
+      <div className="space-y-2 rounded-xl border border-border bg-panel p-3">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-[#cdd6e4]">Add pin on map</span>
+          <span className="text-xs text-foreground/85">Add pin on map</span>
           {placeMode && (
             <button
               type="button"
               onClick={() => onSetPlaceMode(null)}
-              className="text-[11px] text-[#8a97ad] hover:text-[#e6edf6]"
+              className="text-[11px] text-muted hover:text-foreground"
             >
               cancel
             </button>
@@ -153,7 +153,7 @@ export function SimulationControls({
                 className={`rounded-md border px-1 py-1.5 text-[10px] font-medium capitalize transition-colors ${
                   active
                     ? "border-accent bg-accent/15 text-accent"
-                    : "border-[#2a3b5c] text-[#8a97ad] hover:text-[#e6edf6]"
+                    : "border-border text-muted hover:text-foreground"
                 }`}
               >
                 {b}
@@ -163,7 +163,7 @@ export function SimulationControls({
         </div>
         {placeMode && (
           <>
-            <div className="flex rounded-md border border-[#2a3b5c] p-0.5 text-[11px]">
+            <div className="flex rounded-md border border-border p-0.5 text-[11px]">
               {(["add", "remove"] as const).map((a) => (
                 <button
                   key={a}
@@ -172,7 +172,7 @@ export function SimulationControls({
                   className={`flex-1 rounded py-1 font-medium capitalize ${
                     placeMode.action === a
                       ? "bg-accent text-on-accent"
-                      : "text-[#8a97ad]"
+                      : "text-muted"
                   }`}
                 >
                   {a}
@@ -189,10 +189,10 @@ export function SimulationControls({
       {/* Population growth */}
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-[#cdd6e4]">Population growth</span>
+          <span className="text-foreground/85">Population growth</span>
           <span
             className={`font-mono ${
-              growthPct !== 0 ? "text-accent" : "text-[#6b7890]"
+              growthPct !== 0 ? "text-accent" : "text-muted"
             }`}
           >
             {growthPct > 0 ? "+" : ""}
@@ -220,7 +220,7 @@ export function SimulationControls({
             onChange(DEFAULT_SIM);
             onSetPlaceMode(null);
           }}
-          className="w-full rounded-lg border border-[#2a3b5c] bg-[#111d33] py-2 text-xs font-medium text-[#cdd6e4] hover:bg-[#16243d]"
+          className="w-full rounded-lg border border-border bg-panel py-2 text-xs font-medium text-foreground/80 hover:bg-border"
         >
           Reset to baseline
         </button>

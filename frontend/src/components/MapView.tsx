@@ -191,10 +191,10 @@ export default function MapView({
                   : theme === "dark"
                   ? "#0b1322"
                   : "#ffffff",
-                weight: isSelected ? 2.5 : 1,
-                opacity: showHeat ? 0.5 : 0.9,
+                weight: isSelected ? 3 : 1.2,
+                opacity: showHeat ? 0.7 : 0.95,
                 fillColor: gapColor(score),
-                fillOpacity: showHeat ? 0.28 : 0.62,
+                fillOpacity: showHeat ? 0.42 : 0.68,
                 dashArray: isHypo ? "6 5" : undefined,
               }}
               eventHandlers={{ click: () => onSelect(district.district_id) }}

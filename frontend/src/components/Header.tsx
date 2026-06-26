@@ -3,8 +3,8 @@
 import { LogoLockup } from "./Logo";
 import { useTheme } from "./ThemeProvider";
 
-export type NavView = "analysis" | "simulations" | "reports" | "archives";
-const NAV: NavView[] = ["analysis", "simulations", "reports", "archives"];
+export type NavView = "analysis" | "simulations" | "reports";
+const NAV: NavView[] = ["analysis", "simulations", "reports"];
 
 function SunIcon() {
   return (
