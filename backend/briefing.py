@@ -143,18 +143,80 @@ def generate_briefing(district_id: str, mode: str, current_score_state: dict[str
             system=system,
             messages=[{"role": "user", "content": user_msg}],
         )
-    except Exception as e:  # surface a clean error to the API layer
-        raise BriefingError(f"Anthropic API call failed: {e}") from e
+        text = "".join(
+            block.text for block in resp.content
+            if getattr(block, "type", None) == "text"
+        )
+        source = "anthropic"
+        model = config.ANTHROPIC_MODEL
+    except Exception as e:  # noqa: BLE001
+        # Graceful fallback so the demo never dead-ends (e.g. no API credits).
+        text = _template_briefing(district_id, mode, current_score_state)
+        source = "template_fallback"
+        model = f"rule-based (AI unavailable: {e.__class__.__name__})"
 
-    text = "".join(block.text for block in resp.content if getattr(block, "type", None) == "text")
     return {
         "district_id": district_id,
         "mode": mode,
         "briefing": text.strip(),
-        "model": config.ANTHROPIC_MODEL,
+        "model": model,
+        "source": source,
         "is_hypothetical": bool(current_score_state.get("meta", {}).get("is_hypothetical")),
         "disclaimer": (
             "Generated narrative based on the supplied score state. Any amenity edits or "
             "population growth in this scenario are user-hypothetical, not recorded data."
+            + (
+                " NOTE: the Anthropic API was unavailable, so this is a rule-based "
+                "summary of the same numbers, not an LLM generation."
+                if source == "template_fallback"
+                else ""
+            )
         ),
     }
+
+
+def _template_briefing(district_id: str, mode: str, state: dict[str, Any]) -> str:
+    """Deterministic, numbers-only briefing used when the LLM is unavailable."""
+    gap = state.get("gap_score")
+    demand = state.get("demand_index")
+    deductions = state.get("deductions", [])
+    top = deductions[0] if deductions else None
+    top2 = deductions[1] if len(deductions) > 1 else None
+    inv = state.get("investment") or {}
+    ml = inv.get("ml", {})
+    hypo = state.get("meta", {}).get("is_hypothetical")
+    hypo_line = (
+        " This scenario includes user-hypothetical edits (not recorded data)."
+        if hypo
+        else ""
+    )
+    drivers = ", ".join(
+        f"{d.get('category')} ({d.get('points')} pts)" for d in deductions[:3]
+    )
+    if mode == "planner":
+        rec = (
+            f"Prioritise {top.get('category')} provision"
+            + (f", then {top2.get('category')}" if top2 else "")
+            + "."
+            if top
+            else "Maintain current service levels."
+        )
+        return (
+            f"{district_id} — Planner briefing (rule-based).\n\n"
+            f"Gap score {gap}/100 with demand index {demand}. The largest service "
+            f"deficits are: {drivers}. {top.get('reason','') if top else ''}\n\n"
+            f"Recommended action: {rec} Adding facilities in the weakest categories "
+            f"is the fastest way to lower the gap score.{hypo_line}"
+        )
+    return (
+        f"{district_id} — Investor briefing (rule-based).\n\n"
+        f"Investment score {inv.get('investment_score')}/100 ({inv.get('rating')}), "
+        f"opportunity {inv.get('opportunity_score')}, risk {inv.get('risk_score')}. "
+        f"ML expected price AED {ml.get('expected_price_per_sqm_aed')}/sqm at "
+        f"{ml.get('gross_yield_pct')}% gross yield "
+        f"(~{ml.get('payback_years')}y payback). Gap score {gap} signals "
+        f"{'strong latent demand and value-add upside' if (gap or 0) > 60 else 'a relatively well-served, stable market'}.\n\n"
+        f"Opportunity vs risk: closing the {top.get('category') if top else 'service'} "
+        f"gap would lift desirability; the main risk is service strain if population "
+        f"outpaces provision. Scenario shift vs baseline: {inv.get('scenario_delta')} pts.{hypo_line}"
+    )
