@@ -36,6 +36,8 @@ yarn-error.log*
 
 # test artifacts
 /smoke.png
+/smoke-light.png
+/smoke-dark.png
 
 # vercel
 .vercel

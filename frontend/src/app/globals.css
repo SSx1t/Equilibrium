@@ -1,14 +1,40 @@
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
 
+/* ---------- LIGHT THEME (default, matches the reference mockups) ---------- */
 :root {
+  --background: #eef1f7;
+  --foreground: #1a2233;
+  --panel: #ffffff;
+  --panel-2: #f3f6fb;
+  --border: #e3e8f1;
+  --muted: #6b7890;
+  --accent: #0d9488; /* brand teal */
+  --accent-soft: #0d948814;
+  --on-accent: #ffffff;
+  --good: #16a34a;
+  --warn: #f59e0b;
+  --bad: #ef4444;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.06);
+  --tiles: positron;
+}
+
+/* ---------- DARK THEME ---------- */
+html[data-theme="dark"] {
   --background: #070b14;
   --foreground: #e6edf6;
   --panel: #0d1422;
   --panel-2: #111a2c;
   --border: #1e2a42;
   --muted: #8a97ad;
-  --accent: #38bdf8;
+  --accent: #2dd4bf; /* brighter teal on dark */
+  --accent-soft: #2dd4bf1f;
+  --on-accent: #052e2b;
+  --good: #22c55e;
+  --warn: #eab308;
+  --bad: #f87171;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.35);
+  --tiles: dark;
 }
 
 @theme inline {
@@ -19,6 +45,10 @@
   --color-border: var(--border);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-good: var(--good);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -34,42 +64,60 @@ body {
   font-family: var(--font-sans), system-ui, -apple-system, Segoe UI, Roboto,
     Arial, sans-serif;
   overflow: hidden;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Leaflet dark tweaks */
+.card-shadow {
+  box-shadow: var(--shadow);
+}
+
+/* Leaflet theming */
 .leaflet-container {
-  background: #070b14;
+  background: var(--panel-2);
   font-family: inherit;
 }
 .leaflet-control-attribution {
-  background: rgba(7, 11, 20, 0.7) !important;
-  color: #6b7890 !important;
+  background: color-mix(in srgb, var(--panel) 80%, transparent) !important;
+  color: var(--muted) !important;
 }
 .leaflet-control-attribution a {
-  color: #8a97ad !important;
+  color: var(--accent) !important;
 }
 .leaflet-bar a {
-  background: #0d1422 !important;
-  color: #e6edf6 !important;
-  border-color: #1e2a42 !important;
+  background: var(--panel) !important;
+  color: var(--foreground) !important;
+  border-color: var(--border) !important;
 }
 .leaflet-bar a:hover {
-  background: #111a2c !important;
+  background: var(--panel-2) !important;
+}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--panel) !important;
+  color: var(--foreground) !important;
+}
+.leaflet-tooltip {
+  background: var(--panel) !important;
+  color: var(--foreground) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow) !important;
+}
+.leaflet-tooltip-top:before {
+  border-top-color: var(--border) !important;
 }
 
-/* Thin scrollbars in the sidebar */
+/* Thin scrollbars */
 .scroll-thin::-webkit-scrollbar {
   width: 8px;
 }
 .scroll-thin::-webkit-scrollbar-thumb {
-  background: #1e2a42;
+  background: var(--border);
   border-radius: 8px;
 }
 .scroll-thin::-webkit-scrollbar-track {
   background: transparent;
 }
 
-/* Hypothetical hatch pattern badge accent */
 @keyframes pulseGlow {
   0%,
   100% {

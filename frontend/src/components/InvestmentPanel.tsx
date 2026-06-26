@@ -56,9 +56,9 @@ export function InvestmentPanel({
   const deltaUp = scenario_delta > 0;
 
   return (
-    <div className="space-y-4 border-t border-border p-5">
+    <div className="space-y-4 p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted">
           Investment outlook (ML)
         </h3>
         {data.is_hypothetical && <HypotheticalBadge small />}
@@ -85,7 +85,7 @@ export function InvestmentPanel({
           {scenario_delta !== 0 && (
             <div
               className={`mt-0.5 text-[11px] ${
-                deltaUp ? "text-green-400" : "text-red-400"
+                deltaUp ? "text-good" : "text-bad"
               }`}
             >
               {deltaUp ? "▲" : "▼"} {Math.abs(scenario_delta).toFixed(1)} vs
@@ -98,7 +98,7 @@ export function InvestmentPanel({
             <div className="text-[10px] uppercase tracking-wider text-muted">
               Opportunity
             </div>
-            <div className="text-lg font-bold tabular-nums text-lime-400">
+            <div className="text-lg font-bold tabular-nums text-good">
               {data.opportunity_score.toFixed(0)}
             </div>
           </div>
@@ -106,7 +106,7 @@ export function InvestmentPanel({
             <div className="text-[10px] uppercase tracking-wider text-muted">
               Risk
             </div>
-            <div className="text-lg font-bold tabular-nums text-orange-400">
+            <div className="text-lg font-bold tabular-nums text-warn">
               {data.risk_score.toFixed(0)}
             </div>
           </div>
@@ -151,9 +151,7 @@ export function InvestmentPanel({
             Real median {aed(real_market.real_median_price_per_sqm)}/sqm · model is{" "}
             <span
               className={
-                real_market.model_vs_real_pct < 0
-                  ? "text-green-400"
-                  : "text-orange-400"
+                real_market.model_vs_real_pct < 0 ? "text-good" : "text-warn"
               }
             >
               {real_market.model_vs_real_pct > 0 ? "+" : ""}

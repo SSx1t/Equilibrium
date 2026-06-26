@@ -38,6 +38,7 @@ interface Props {
   placeActive: boolean;
   onMapClick: (lat: number, lon: number) => void;
   pins: PlacedPin[];
+  theme: "light" | "dark";
 }
 
 function ClickCapture({
@@ -125,7 +126,12 @@ export default function MapView({
   placeActive,
   onMapClick,
   pins,
+  theme,
 }: Props) {
+  const tileUrl =
+    theme === "dark"
+      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+      : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
   // Build Voronoi cells from district centroids, clipped to a padded bbox.
   const cells = useMemo(() => {
     if (districts.length === 0) return [];
@@ -163,8 +169,8 @@ export default function MapView({
       style={{ height: "100%", width: "100%" }}
     >
       <TileLayer
-        attribution='&copy; OpenStreetMap &copy; CARTO'
-        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        attribution="&copy; OpenStreetMap &copy; CARTO"
+        url={tileUrl}
       />
 
       {showChoropleth &&
@@ -178,11 +184,17 @@ export default function MapView({
               key={district.district_id}
               positions={latlngs}
               pathOptions={{
-                color: isSelected ? "#ffffff" : "#0b1322",
+                color: isSelected
+                  ? theme === "dark"
+                    ? "#ffffff"
+                    : "#0f172a"
+                  : theme === "dark"
+                  ? "#0b1322"
+                  : "#ffffff",
                 weight: isSelected ? 2.5 : 1,
                 opacity: showHeat ? 0.5 : 0.9,
                 fillColor: gapColor(score),
-                fillOpacity: showHeat ? 0.28 : 0.6,
+                fillOpacity: showHeat ? 0.28 : 0.62,
                 dashArray: isHypo ? "6 5" : undefined,
               }}
               eventHandlers={{ click: () => onSelect(district.district_id) }}

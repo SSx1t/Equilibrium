@@ -28,6 +28,10 @@ export function gapColor(score: number): string {
   return `rgb(${STOPS[STOPS.length - 1].c.join(",")})`;
 }
 
+export function gapColorA(score: number, alpha: number): string {
+  return gapColor(score).replace("rgb(", "rgba(").replace(")", `, ${alpha})`);
+}
+
 export function gapLabel(score: number): string {
   if (score >= 85) return "Critical gap";
   if (score >= 65) return "High gap";

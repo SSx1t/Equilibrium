@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BriefingPanel } from "@/components/BriefingPanel";
 import { DistrictPanel } from "@/components/DistrictPanel";
+import { Header, type NavView } from "@/components/Header";
 import { InvestmentPanel } from "@/components/InvestmentPanel";
 import { Legend } from "@/components/Legend";
 import type { LayerMode, PlacedPin } from "@/components/MapView";
@@ -13,6 +14,7 @@ import {
   SimulationControls,
   type SimState,
 } from "@/components/SimulationControls";
+import { useTheme } from "@/components/ThemeProvider";
 import {
   getDistricts,
   getHeatmap,
@@ -20,9 +22,10 @@ import {
   simulate,
   simulateHeatmap,
 } from "@/lib/api";
-import { gapColor } from "@/lib/color";
+import { gapColor, gapColorA } from "@/lib/color";
 import type {
   AmenityOverride,
+  BriefingMode,
   DistrictSummary,
   HeatPoint,
   InvestmentResult,
@@ -38,24 +41,23 @@ const MapView = dynamic(() => import("@/components/MapView"), {
   ),
 });
 
-type SidebarTab = "detail" | "rankings";
-
 const LAYERS: { id: LayerMode; label: string }[] = [
-  { id: "choropleth", label: "Choropleth" },
-  { id: "heatmap", label: "Heatmap" },
+  { id: "choropleth", label: "Gap Score" },
+  { id: "heatmap", label: "Pressure Heatmap" },
   { id: "both", label: "Both" },
 ];
 
 export default function Home() {
+  const { theme } = useTheme();
+  const [view, setView] = useState<NavView>("analysis");
+  const [mode, setMode] = useState<BriefingMode>("planner");
+  const [briefingSignal, setBriefingSignal] = useState(0);
+
   const [districts, setDistricts] = useState<DistrictSummary[]>([]);
-  const [heat, setHeat] = useState<HeatPoint[]>([]);
   const [layer, setLayer] = useState<LayerMode>("both");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [tab, setTab] = useState<SidebarTab>("detail");
 
-  const [simByDistrict, setSimByDistrict] = useState<Record<string, SimState>>(
-    {}
-  );
+  const [simByDistrict, setSimByDistrict] = useState<Record<string, SimState>>({});
   const [resultByDistrict, setResultByDistrict] = useState<
     Record<string, ScoreResult>
   >({});
@@ -65,10 +67,9 @@ export default function Home() {
   const [simLoading, setSimLoading] = useState(false);
   const [connError, setConnError] = useState<string | null>(null);
   const [placeMode, setPlaceMode] = useState<PlaceMode | null>(null);
-
+  const [heat, setHeat] = useState<HeatPoint[]>([]);
   const [baseHeat, setBaseHeat] = useState<HeatPoint[]>([]);
 
-  // Initial data load
   useEffect(() => {
     (async () => {
       try {
@@ -89,7 +90,6 @@ export default function Home() {
     : DEFAULT_SIM;
   const selectedSimKey = JSON.stringify(selectedSim);
 
-  // Live re-score the selected district (debounced) whenever its sim changes.
   const reqIdRef = useRef(0);
   useEffect(() => {
     if (!selectedId) return;
@@ -111,7 +111,7 @@ export default function Home() {
           setInvestByDistrict((prev) => ({ ...prev, [selectedId]: inv }));
         }
       } catch {
-        /* keep previous result on transient error */
+        /* keep previous */
       } finally {
         if (myReq === reqIdRef.current) setSimLoading(false);
       }
@@ -120,32 +120,20 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, selectedSimKey]);
 
-  // All hypothetical overrides across every district (for pins + heatmap).
   const allOverrides = useMemo<AmenityOverride[]>(() => {
     const out: AmenityOverride[] = [];
-    for (const sim of Object.values(simByDistrict)) {
-      out.push(...sim.overrides);
-    }
+    for (const sim of Object.values(simByDistrict)) out.push(...sim.overrides);
     return out;
   }, [simByDistrict]);
 
   const pins = useMemo<PlacedPin[]>(() => {
     const out: PlacedPin[] = [];
-    for (const [district, sim] of Object.entries(simByDistrict)) {
-      for (const o of sim.overrides) {
-        out.push({
-          lat: o.lat,
-          lon: o.lon,
-          type: o.type,
-          district,
-          action: o.action,
-        });
-      }
-    }
+    for (const [district, sim] of Object.entries(simByDistrict))
+      for (const o of sim.overrides)
+        out.push({ lat: o.lat, lon: o.lon, type: o.type, district, action: o.action });
     return out;
   }, [simByDistrict]);
 
-  // Recompute the heatmap with placed amenities relieving local pressure.
   const overridesKey = JSON.stringify(allOverrides);
   useEffect(() => {
     if (allOverrides.length === 0) {
@@ -158,7 +146,7 @@ export default function Home() {
         const h = await simulateHeatmap(allOverrides);
         if (!cancelled) setHeat(h.points);
       } catch {
-        /* keep current heat */
+        /* keep current */
       }
     }, 200);
     return () => {
@@ -168,7 +156,6 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overridesKey, baseHeat]);
 
-  // Nearest district centroid for a clicked map point.
   const nearestDistrict = useCallback(
     (lat: number, lon: number): DistrictSummary | null => {
       let best: DistrictSummary | null = null;
@@ -205,7 +192,6 @@ export default function Home() {
         };
       });
       setSelectedId(id);
-      setTab("detail");
     },
     [placeMode, nearestDistrict]
   );
@@ -213,8 +199,7 @@ export default function Home() {
   const scoresById = useMemo(() => {
     const m: Record<string, number> = {};
     for (const d of districts) m[d.district_id] = d.gap_score;
-    for (const [id, r] of Object.entries(resultByDistrict))
-      m[id] = r.gap_score;
+    for (const [id, r] of Object.entries(resultByDistrict)) m[id] = r.gap_score;
     return m;
   }, [districts, resultByDistrict]);
 
@@ -225,17 +210,13 @@ export default function Home() {
     return s;
   }, [resultByDistrict]);
 
-  const handleSelect = useCallback((id: string) => {
-    setSelectedId(id);
-    setTab("detail");
-  }, []);
+  const handleSelect = useCallback((id: string) => setSelectedId(id), []);
 
-  const selectedDistrict = districts.find(
-    (d) => d.district_id === selectedId
-  );
+  const selectedDistrict = districts.find((d) => d.district_id === selectedId);
   const selectedResult = selectedId ? resultByDistrict[selectedId] : null;
+  const selectedInvest = selectedId ? investByDistrict[selectedId] : null;
 
-  const rankings = useMemo(
+  const sortedDistricts = useMemo(
     () =>
       [...districts].sort(
         (a, b) =>
@@ -245,193 +226,347 @@ export default function Home() {
     [districts, scoresById]
   );
 
+  const liveGap = selectedResult?.gap_score ?? selectedDistrict?.gap_score ?? 0;
+
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">
-      {/* Header */}
-      <header className="flex shrink-0 items-center justify-between border-b border-border bg-panel px-5 py-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-base font-bold text-[#06243a]">
-            E
-          </div>
-          <div>
-            <h1 className="text-sm font-semibold leading-tight">
-              Equilibrium
-            </h1>
-            <p className="text-[11px] leading-tight text-muted">
-              Abu Dhabi demand-supply gap simulator
-            </p>
-          </div>
-        </div>
+      <Header
+        view={view}
+        onNav={setView}
+        mode={mode}
+        onMode={setMode}
+        onGenerateBriefing={() => setBriefingSignal((s) => s + 1)}
+        briefingDisabled={!selectedResult}
+      />
 
-        <div className="flex items-center gap-3">
-          <div className="flex rounded-lg border border-border bg-panel-2 p-0.5 text-xs">
-            {LAYERS.map((l) => (
-              <button
-                key={l.id}
-                type="button"
-                onClick={() => setLayer(l.id)}
-                className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
-                  layer === l.id
-                    ? "bg-accent text-[#06243a]"
-                    : "text-muted hover:text-foreground"
-                }`}
-              >
-                {l.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </header>
-
-      <div className="flex min-h-0 flex-1">
-        {/* Map */}
-        <div className="relative min-w-0 flex-1">
-          {connError ? (
-            <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
-              <p className="text-sm font-medium text-red-300">
-                Cannot reach the scoring API
-              </p>
-              <p className="max-w-md text-xs text-muted">
-                {connError}. Make sure the FastAPI server is running on{" "}
-                <code className="text-foreground/80">localhost:8000</code> (see
-                README), or set{" "}
-                <code className="text-foreground/80">NEXT_PUBLIC_API_URL</code>.
-              </p>
-            </div>
-          ) : (
-            <>
-              <MapView
-                districts={districts}
-                scoresById={scoresById}
-                hypotheticalIds={hypotheticalIds}
-                heatPoints={heat}
-                layer={layer}
-                selectedId={selectedId}
-                onSelect={handleSelect}
-                placeActive={placeMode !== null}
-                onMapClick={handleMapClick}
-                pins={pins}
-              />
-              <Legend layer={layer} />
-              {placeMode && (
-                <div className="pointer-events-none absolute left-1/2 top-4 z-[1000] -translate-x-1/2 rounded-full border border-accent/50 bg-panel/95 px-4 py-1.5 text-xs font-medium text-accent backdrop-blur">
-                  Click the map to {placeMode.action} a {placeMode.type} (what-if)
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Sidebar */}
-        <aside className="flex w-[400px] shrink-0 flex-col border-l border-border bg-panel">
-          <div className="flex shrink-0 border-b border-border">
-            {(["detail", "rankings"] as SidebarTab[]).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTab(t)}
-                className={`flex-1 py-2.5 text-xs font-medium capitalize transition-colors ${
-                  tab === t
-                    ? "border-b-2 border-accent text-foreground"
-                    : "text-muted hover:text-foreground"
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-
-          <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
-            {tab === "detail" ? (
+      {view === "analysis" ? (
+        <div className="flex min-h-0 flex-1">
+          {/* Map */}
+          <div className="relative min-w-0 flex-1">
+            {connError ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
+                <p className="text-sm font-medium text-bad">
+                  Cannot reach the scoring API
+                </p>
+                <p className="max-w-md text-xs text-muted">
+                  {connError}. Make sure the FastAPI server is running on{" "}
+                  <code>localhost:8000</code>, or set{" "}
+                  <code>NEXT_PUBLIC_API_URL</code>.
+                </p>
+              </div>
+            ) : (
               <>
-                <DistrictPanel
-                  result={selectedResult ?? null}
-                  name={selectedDistrict?.name ?? null}
-                  loading={simLoading}
+                {/* Layer toggle (top-right) */}
+                <div className="absolute right-4 top-4 z-[1000] flex rounded-lg border border-border bg-panel/95 p-0.5 text-xs card-shadow backdrop-blur">
+                  {LAYERS.map((l) => (
+                    <button
+                      key={l.id}
+                      type="button"
+                      onClick={() => setLayer(l.id)}
+                      className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
+                        layer === l.id
+                          ? "bg-accent text-on-accent"
+                          : "text-muted hover:text-foreground"
+                      }`}
+                    >
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+
+                <MapView
+                  districts={districts}
+                  scoresById={scoresById}
+                  hypotheticalIds={hypotheticalIds}
+                  heatPoints={heat}
+                  layer={layer}
+                  selectedId={selectedId}
+                  onSelect={handleSelect}
+                  placeActive={placeMode !== null}
+                  onMapClick={handleMapClick}
+                  pins={pins}
+                  theme={theme}
                 />
-                {selectedId && (
-                  <>
-                    <SimulationControls
-                      state={selectedSim}
-                      center={
-                        selectedDistrict
-                          ? {
-                              lat: selectedDistrict.lat,
-                              lon: selectedDistrict.lon,
-                            }
-                          : null
-                      }
-                      onChange={(next) =>
-                        setSimByDistrict((prev) => ({
-                          ...prev,
-                          [selectedId]: next,
-                        }))
-                      }
-                      disabled={false}
-                      placeMode={placeMode}
-                      onSetPlaceMode={setPlaceMode}
-                    />
-                    <InvestmentPanel
-                      data={investByDistrict[selectedId] ?? null}
-                      loading={simLoading}
-                    />
-                    <BriefingPanel
-                      districtId={selectedId}
-                      result={selectedResult ?? null}
-                      investment={investByDistrict[selectedId] ?? null}
-                    />
-                  </>
+                <Legend layer={layer} />
+                {placeMode && (
+                  <div className="pointer-events-none absolute left-1/2 top-4 z-[1000] -translate-x-1/2 rounded-full border border-accent/50 bg-panel/95 px-4 py-1.5 text-xs font-medium text-accent card-shadow backdrop-blur">
+                    Click the map to {placeMode.action} a {placeMode.type} (what-if)
+                  </div>
                 )}
               </>
-            ) : (
-              <div className="p-3">
-                <p className="mb-2 px-2 text-[11px] text-muted">
-                  {districts.length} districts · sorted by gap score
-                  {hypotheticalIds.size > 0 && " · ✦ = what-if applied"}
-                </p>
-                <ul className="space-y-1">
-                  {rankings.map((d, i) => {
-                    const score = scoresById[d.district_id] ?? d.gap_score;
-                    const hypo = hypotheticalIds.has(d.district_id);
-                    return (
-                      <li key={d.district_id}>
-                        <button
-                          type="button"
-                          onClick={() => handleSelect(d.district_id)}
-                          className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${
-                            d.district_id === selectedId
-                              ? "border-accent bg-panel-2"
-                              : "border-transparent hover:bg-panel-2"
-                          }`}
-                        >
-                          <span className="w-5 text-right font-mono text-xs text-muted">
-                            {i + 1}
-                          </span>
-                          <span
-                            className="h-7 w-1.5 shrink-0 rounded-full"
-                            style={{ background: gapColor(score) }}
-                          />
-                          <span className="min-w-0 flex-1 truncate text-sm">
-                            {d.name}
-                            {hypo && (
-                              <span className="ml-1 text-amber-300">✦</span>
-                            )}
-                          </span>
-                          <span
-                            className="font-mono text-sm font-semibold tabular-nums"
-                            style={{ color: gapColor(score) }}
-                          >
-                            {score.toFixed(0)}
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
             )}
           </div>
-        </aside>
+
+          {/* Sidebar */}
+          <aside className="flex w-[400px] shrink-0 flex-col border-l border-border bg-panel">
+            {/* District header */}
+            <div className="shrink-0 border-b border-border p-4">
+              <div className="mb-2 flex items-center gap-2">
+                <select
+                  value={selectedId ?? ""}
+                  onChange={(e) => setSelectedId(e.target.value || null)}
+                  className="flex-1 rounded-lg border border-border bg-panel-2 px-2.5 py-1.5 text-sm font-medium text-foreground outline-none focus:border-accent"
+                >
+                  <option value="">Select a district…</option>
+                  {sortedDistricts.map((d) => (
+                    <option key={d.district_id} value={d.district_id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedDistrict ? (
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold leading-tight tracking-tight">
+                      {selectedDistrict.name}
+                    </h2>
+                    <p className="text-xs text-muted">
+                      {selectedDistrict.area_type} ·{" "}
+                      {selectedResult?.meta.population_simulated.toLocaleString() ??
+                        selectedDistrict.population.toLocaleString()}{" "}
+                      residents
+                      {selectedResult &&
+                        selectedResult.meta.population_multiplier !== 1 && (
+                          <span className="text-warn">
+                            {" "}
+                            (×{selectedResult.meta.population_multiplier})
+                          </span>
+                        )}
+                    </p>
+                  </div>
+                  <span
+                    className="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold"
+                    style={{
+                      background: gapColorA(liveGap, 0.16),
+                      color: gapColor(liveGap),
+                    }}
+                  >
+                    Gap {liveGap.toFixed(0)}/100
+                  </span>
+                </div>
+              ) : (
+                <p className="text-sm text-muted">
+                  Pick a district above or click the map.
+                </p>
+              )}
+            </div>
+
+            <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
+              {!selectedId ? (
+                <div className="p-4">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted">
+                    Highest gap districts
+                  </p>
+                  <ul className="space-y-1">
+                    {sortedDistricts.slice(0, 8).map((d, i) => {
+                      const score = scoresById[d.district_id] ?? d.gap_score;
+                      return (
+                        <li key={d.district_id}>
+                          <button
+                            type="button"
+                            onClick={() => handleSelect(d.district_id)}
+                            className="flex w-full items-center gap-3 rounded-lg border border-transparent px-2.5 py-2 text-left hover:bg-panel-2"
+                          >
+                            <span className="w-4 text-right font-mono text-xs text-muted">
+                              {i + 1}
+                            </span>
+                            <span
+                              className="h-6 w-1.5 rounded-full"
+                              style={{ background: gapColor(score) }}
+                            />
+                            <span className="flex-1 truncate text-sm">
+                              {d.name}
+                            </span>
+                            <span
+                              className="font-mono text-sm font-semibold"
+                              style={{ color: gapColor(score) }}
+                            >
+                              {score.toFixed(0)}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ) : (
+                <>
+                  {selectedResult ? (
+                    mode === "planner" ? (
+                      <DistrictPanel result={selectedResult} />
+                    ) : (
+                      <InvestmentPanel data={selectedInvest ?? null} loading={simLoading} />
+                    )
+                  ) : (
+                    <p className="p-4 text-sm text-muted">Scoring…</p>
+                  )}
+
+                  <SimulationControls
+                    state={selectedSim}
+                    center={
+                      selectedDistrict
+                        ? { lat: selectedDistrict.lat, lon: selectedDistrict.lon }
+                        : null
+                    }
+                    onChange={(next) =>
+                      setSimByDistrict((prev) => ({ ...prev, [selectedId]: next }))
+                    }
+                    disabled={false}
+                    placeMode={placeMode}
+                    onSetPlaceMode={setPlaceMode}
+                  />
+
+                  <BriefingPanel
+                    districtId={selectedId}
+                    result={selectedResult ?? null}
+                    investment={selectedInvest ?? null}
+                    mode={mode}
+                    triggerSignal={briefingSignal}
+                  />
+                </>
+              )}
+            </div>
+          </aside>
+        </div>
+      ) : view === "simulations" ? (
+        <SimulationsView
+          districts={sortedDistricts}
+          resultByDistrict={resultByDistrict}
+          investByDistrict={investByDistrict}
+          onOpen={(id) => {
+            setSelectedId(id);
+            setView("analysis");
+          }}
+        />
+      ) : (
+        <RoadmapView view={view} />
+      )}
+    </div>
+  );
+}
+
+function SimulationsView({
+  districts,
+  resultByDistrict,
+  investByDistrict,
+  onOpen,
+}: {
+  districts: DistrictSummary[];
+  resultByDistrict: Record<string, ScoreResult>;
+  investByDistrict: Record<string, InvestmentResult>;
+  onOpen: (id: string) => void;
+}) {
+  const scenarios = districts.filter(
+    (d) => resultByDistrict[d.district_id]?.meta.is_hypothetical
+  );
+  return (
+    <div className="scroll-thin min-h-0 flex-1 overflow-y-auto bg-background p-8">
+      <div className="mx-auto max-w-4xl">
+        <h1 className="text-2xl font-bold tracking-tight">Simulations</h1>
+        <p className="mt-1 text-sm text-muted">
+          Your active what-if scenarios. Every figure is hypothetical and traces
+          to the live scoring engine.
+        </p>
+
+        {scenarios.length === 0 ? (
+          <div className="mt-8 rounded-2xl border border-dashed border-border bg-panel p-10 text-center">
+            <p className="text-sm font-medium">No active scenarios yet</p>
+            <p className="mt-1 text-xs text-muted">
+              Go to Analysis, pick a district, then add amenities or adjust
+              population growth to model an intervention.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-6 space-y-3">
+            {scenarios.map((d) => {
+              const r = resultByDistrict[d.district_id];
+              const inv = investByDistrict[d.district_id];
+              const baseGap = d.gap_score;
+              const gapDelta = r.gap_score - baseGap;
+              return (
+                <div
+                  key={d.district_id}
+                  className="flex items-center justify-between rounded-2xl border border-border bg-panel p-4 card-shadow"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">{d.name}</span>
+                      <span className="rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-[10px] font-medium text-warn">
+                        WHAT-IF
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted">
+                      Pop ×{r.meta.population_multiplier} ·{" "}
+                      {Object.entries(r.meta.amenity_override_delta)
+                        .filter(([, v]) => v)
+                        .map(([k, v]) => `${v > 0 ? "+" : ""}${v} ${k}`)
+                        .join(", ") || "no amenity edits"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-6 text-right">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-muted">
+                        Gap Δ
+                      </div>
+                      <div
+                        className="font-mono text-sm font-semibold"
+                        style={{ color: gapColor(gapDelta > 0 ? 90 : 10) }}
+                      >
+                        {gapDelta > 0 ? "+" : ""}
+                        {gapDelta.toFixed(1)}
+                      </div>
+                    </div>
+                    {inv && (
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted">
+                          Invest Δ
+                        </div>
+                        <div
+                          className={`font-mono text-sm font-semibold ${
+                            inv.scenario_delta >= 0 ? "text-good" : "text-bad"
+                          }`}
+                        >
+                          {inv.scenario_delta > 0 ? "+" : ""}
+                          {inv.scenario_delta}
+                        </div>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => onOpen(d.district_id)}
+                      className="rounded-lg bg-foreground px-3 py-1.5 text-xs font-semibold text-background"
+                    >
+                      Open
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RoadmapView({ view }: { view: NavView }) {
+  const copy: Record<string, string> = {
+    reports:
+      "Saved AI briefings and district audits will live here. Generate a briefing in Analysis to see the underlying output.",
+    archives:
+      "Versioned snapshots of past scenarios and published reports will be archived here.",
+  };
+  return (
+    <div className="flex min-h-0 flex-1 items-center justify-center bg-background p-8">
+      <div className="max-w-md rounded-2xl border border-dashed border-border bg-panel p-10 text-center card-shadow">
+        <h1 className="text-xl font-bold capitalize tracking-tight">{view}</h1>
+        <p className="mt-2 text-sm text-muted">{copy[view] ?? ""}</p>
+        <p className="mt-4 text-xs text-muted">
+          The live engine (scoring, heatmap, ML investment, AI briefings) is in{" "}
+          <span className="font-medium text-foreground">Analysis</span>.
+        </p>
       </div>
     </div>
   );

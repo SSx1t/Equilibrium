@@ -130,6 +130,7 @@ export interface BriefingResponse {
   mode: BriefingMode;
   briefing: string;
   model: string;
+  source?: string;
   is_hypothetical: boolean;
   disclaimer: string;
 }

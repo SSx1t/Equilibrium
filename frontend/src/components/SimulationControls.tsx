@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  BUCKETS,
-  type AmenityOverride,
-  type Bucket,
-} from "@/lib/types";
-import { HypotheticalBadge } from "./HypotheticalBadge";
+import { BUCKETS, type AmenityOverride, type Bucket } from "@/lib/types";
 
 export interface SimState {
   populationMultiplier: number;
@@ -17,6 +12,11 @@ export const DEFAULT_SIM: SimState = {
   overrides: [],
 };
 
+export interface PlaceMode {
+  type: Bucket;
+  action: "add" | "remove";
+}
+
 const BUCKET_LABEL: Record<Bucket, string> = {
   healthcare: "Healthcare",
   education: "Education",
@@ -26,15 +26,10 @@ const BUCKET_LABEL: Record<Bucket, string> = {
 };
 
 function netDelta(overrides: AmenityOverride[], bucket: Bucket): number {
-  return overrides.reduce((acc, o) => {
-    if (o.type !== bucket) return acc;
-    return acc + (o.action === "add" ? 1 : -1);
-  }, 0);
-}
-
-export interface PlaceMode {
-  type: Bucket;
-  action: "add" | "remove";
+  return overrides.reduce(
+    (acc, o) => (o.type !== bucket ? acc : acc + (o.action === "add" ? 1 : -1)),
+    0
+  );
 }
 
 export function SimulationControls({
@@ -52,8 +47,8 @@ export function SimulationControls({
   placeMode: PlaceMode | null;
   onSetPlaceMode: (m: PlaceMode | null) => void;
 }) {
-  const isDirty =
-    state.populationMultiplier !== 1 || state.overrides.length > 0;
+  const isDirty = state.populationMultiplier !== 1 || state.overrides.length > 0;
+  const growthPct = Math.round((state.populationMultiplier - 1) * 100);
 
   const addOverride = (bucket: Bucket, action: "add" | "remove") => {
     if (!center) return;
@@ -66,80 +61,48 @@ export function SimulationControls({
     });
   };
 
-  const growthPct = Math.round((state.populationMultiplier - 1) * 100);
-
   return (
-    <div className="space-y-4 border-t border-border p-5">
+    <div className="m-4 space-y-4 rounded-2xl border border-[#223150] bg-[#0d1626] p-4 text-[#e6edf6]">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
-          What-if simulation
-        </h3>
-        {isDirty && <HypotheticalBadge small />}
+        <div className="flex items-center gap-2">
+          <span className="text-accent">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />
+            </svg>
+          </span>
+          <span className="text-sm font-semibold">Simulation</span>
+        </div>
+        <span className="rounded-full border border-[#2a3b5c] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#8a97ad]">
+          Experimental
+        </span>
       </div>
-
-      <p className="-mt-1 text-[11px] leading-snug text-muted">
-        Hypothetical edits only — never saved to the data. The map and scores
-        update instantly.
+      <p className="-mt-2 text-[11px] text-[#8a97ad]">
+        Hypothetical modelling, not real-time data.
       </p>
 
-      {/* Population growth slider */}
+      {/* Modify amenities — quick (district centre) */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-foreground/90">Population growth</span>
-          <span
-            className={`font-mono ${
-              growthPct !== 0 ? "text-amber-300" : "text-muted"
-            }`}
-          >
-            {growthPct > 0 ? "+" : ""}
-            {growthPct}%
-          </span>
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8a97ad]">
+          Modify amenities
         </div>
-        <input
-          type="range"
-          min={0.8}
-          max={1.5}
-          step={0.05}
-          value={state.populationMultiplier}
-          disabled={disabled}
-          onChange={(e) =>
-            onChange({
-              ...state,
-              populationMultiplier: parseFloat(e.target.value),
-            })
-          }
-          className="w-full"
-        />
-        <div className="flex justify-between text-[10px] text-muted">
-          <span>−20%</span>
-          <span>baseline</span>
-          <span>+50%</span>
-        </div>
-      </div>
-
-      {/* Amenity overrides */}
-      <div className="space-y-2">
-        <div className="text-xs text-foreground/90">Adjust amenities</div>
         {BUCKETS.map((b) => {
           const d = netDelta(state.overrides, b);
           return (
-            <div key={b} className="flex items-center justify-between gap-2">
-              <span className="text-xs text-foreground/80">
-                {BUCKET_LABEL[b]}
-              </span>
+            <div key={b} className="flex items-center justify-between">
+              <span className="text-xs text-[#cdd6e4]">{BUCKET_LABEL[b]}</span>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   disabled={disabled || !center}
                   onClick={() => addOverride(b, "remove")}
-                  className="h-6 w-6 rounded-md border border-border bg-panel-2 text-sm leading-none text-foreground/80 hover:bg-border disabled:opacity-40"
+                  className="h-6 w-6 rounded-md border border-[#2a3b5c] bg-[#111d33] text-sm leading-none text-[#cdd6e4] hover:bg-[#16243d] disabled:opacity-40"
                   aria-label={`Remove ${b}`}
                 >
                   −
                 </button>
                 <span
-                  className={`w-8 text-center font-mono text-xs ${
-                    d === 0 ? "text-muted" : "text-amber-300"
+                  className={`w-7 text-center font-mono text-xs ${
+                    d === 0 ? "text-[#6b7890]" : "text-accent"
                   }`}
                 >
                   {d > 0 ? "+" : ""}
@@ -149,7 +112,7 @@ export function SimulationControls({
                   type="button"
                   disabled={disabled || !center}
                   onClick={() => addOverride(b, "add")}
-                  className="h-6 w-6 rounded-md border border-border bg-panel-2 text-sm leading-none text-foreground/80 hover:bg-border disabled:opacity-40"
+                  className="h-6 w-6 rounded-md border border-[#2a3b5c] bg-[#111d33] text-sm leading-none text-[#cdd6e4] hover:bg-[#16243d] disabled:opacity-40"
                   aria-label={`Add ${b}`}
                 >
                   +
@@ -160,15 +123,15 @@ export function SimulationControls({
         })}
       </div>
 
-      {/* Place precisely on the map (sub-district) */}
-      <div className="space-y-2 rounded-lg border border-border bg-panel-2/50 p-3">
+      {/* Place precisely on the map */}
+      <div className="space-y-2 rounded-xl border border-[#223150] bg-[#0a1322] p-3">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-foreground/90">Place on map</span>
+          <span className="text-xs text-[#cdd6e4]">Add pin on map</span>
           {placeMode && (
             <button
               type="button"
               onClick={() => onSetPlaceMode(null)}
-              className="text-[11px] text-muted hover:text-foreground"
+              className="text-[11px] text-[#8a97ad] hover:text-[#e6edf6]"
             >
               cancel
             </button>
@@ -190,7 +153,7 @@ export function SimulationControls({
                 className={`rounded-md border px-1 py-1.5 text-[10px] font-medium capitalize transition-colors ${
                   active
                     ? "border-accent bg-accent/15 text-accent"
-                    : "border-border text-muted hover:text-foreground"
+                    : "border-[#2a3b5c] text-[#8a97ad] hover:text-[#e6edf6]"
                 }`}
               >
                 {b}
@@ -200,7 +163,7 @@ export function SimulationControls({
         </div>
         {placeMode && (
           <>
-            <div className="flex rounded-md border border-border p-0.5 text-[11px]">
+            <div className="flex rounded-md border border-[#2a3b5c] p-0.5 text-[11px]">
               {(["add", "remove"] as const).map((a) => (
                 <button
                   key={a}
@@ -208,20 +171,46 @@ export function SimulationControls({
                   onClick={() => onSetPlaceMode({ ...placeMode, action: a })}
                   className={`flex-1 rounded py-1 font-medium capitalize ${
                     placeMode.action === a
-                      ? "bg-accent text-[#06243a]"
-                      : "text-muted"
+                      ? "bg-accent text-on-accent"
+                      : "text-[#8a97ad]"
                   }`}
                 >
                   {a}
                 </button>
               ))}
             </div>
-            <p className="text-[11px] leading-snug text-amber-300">
-              Click anywhere on the map to {placeMode.action} a {placeMode.type}{" "}
-              at that exact spot.
+            <p className="text-[11px] leading-snug text-accent">
+              Click the map to {placeMode.action} a {placeMode.type} at that spot.
             </p>
           </>
         )}
+      </div>
+
+      {/* Population growth */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-[#cdd6e4]">Population growth</span>
+          <span
+            className={`font-mono ${
+              growthPct !== 0 ? "text-accent" : "text-[#6b7890]"
+            }`}
+          >
+            {growthPct > 0 ? "+" : ""}
+            {growthPct}%
+          </span>
+        </div>
+        <input
+          type="range"
+          min={0.8}
+          max={1.5}
+          step={0.05}
+          value={state.populationMultiplier}
+          disabled={disabled}
+          onChange={(e) =>
+            onChange({ ...state, populationMultiplier: parseFloat(e.target.value) })
+          }
+          className="w-full"
+        />
       </div>
 
       {isDirty && (
@@ -231,7 +220,7 @@ export function SimulationControls({
             onChange(DEFAULT_SIM);
             onSetPlaceMode(null);
           }}
-          className="w-full rounded-lg border border-border bg-panel-2 py-2 text-xs font-medium text-foreground/80 hover:bg-border"
+          className="w-full rounded-lg border border-[#2a3b5c] bg-[#111d33] py-2 text-xs font-medium text-[#cdd6e4] hover:bg-[#16243d]"
         >
           Reset to baseline
         </button>
