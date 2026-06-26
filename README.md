@@ -10,19 +10,57 @@ touched).
 > **Backend** = Python scoring engine + FastAPI (`backend/`).
 > **Frontend** = Next.js dashboard (`frontend/`).
 
-## Run it (two terminals)
+## Run locally
+
+**Prerequisites:** Python 3.10+ (3.12 recommended) and Node.js 18+ (20+ ideal).
+Use **two terminals** — start the backend first, then the frontend.
+
+### Terminal 1 — backend (FastAPI, port 8000)
 
 ```bash
-# 1) backend
-pip install -r requirements.txt        # add --break-system-packages on Debian/PEP-668
-python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+git clone https://github.com/SSx1t/Equilibrium.git
+cd Equilibrium
 
-# 2) frontend
-cd frontend && npm install && npm run dev   # http://localhost:3000
+# create + activate a virtualenv (recommended)
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+
+pip install -r requirements.txt
+
+# OPTIONAL: enable the AI "Generate Briefing" buttons (everything else works without it).
+# Use a Google Gemini key (free tier) or an Anthropic key.
+echo "GEMINI_API_KEY=your_key_here" > .env
+
+# run the API
+uvicorn backend.main:app --reload --port 8000
 ```
 
-The dashboard reads `NEXT_PUBLIC_API_URL` (default `http://localhost:8000`, see
-`frontend/.env.example`).
+Verify: open <http://localhost:8000/health> → `{"status":"ok","districts":20}`.
+
+### Terminal 2 — frontend (Next.js, port 3000)
+
+```bash
+cd Equilibrium/frontend
+npm install
+
+# point the dashboard at the local API
+echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
+
+npm run dev
+```
+
+Open **<http://localhost:3000>**.
+
+### Notes
+- Start the **backend first** so the frontend can reach it.
+- `.env` (backend) and `.env.local` (frontend) are git-ignored — safe for keys.
+- The map, gap scoring, heatmap, simulation, ML investment and PDF reports all
+  work **without** any API key. The key only powers the AI briefing/narrative.
+- Debian/Ubuntu only: if you skip the virtualenv and `pip` errors with
+  "externally-managed-environment", add `--break-system-packages` (the venv
+  above avoids this).
+- To refresh the cached real eVoost market data:
+  `export UAE_DATA_API_KEY=... && python3 scripts/fetch_evoost.py`.
 
 ---
 
@@ -39,23 +77,18 @@ The dashboard reads `NEXT_PUBLIC_API_URL` (default `http://localhost:8000`, see
 
 ---
 
-## Quick start
+## Developer scripts
 
 ```bash
-pip install -r requirements.txt          # (add --break-system-packages on Debian/PEP-668)
-
 # rebuild the heatmap artifact (optional; checked in)
 python3 scripts/build_heatmap.py
 
 # verify the scoring engine (baseline vs fake amenity vs +20% population, + timing)
 python3 scripts/test_scoring.py
-
-# run the API
-python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
-For the AI briefing only: `cp .env.example .env` and set **either** `GEMINI_API_KEY`
-(Google AI Studio, free tier) **or** `ANTHROPIC_API_KEY`. `LLM_PROVIDER=auto`
+For the AI briefing: set **either** `GEMINI_API_KEY` (Google AI Studio, free tier)
+**or** `ANTHROPIC_API_KEY` in `.env` (see `.env.example`). `LLM_PROVIDER=auto`
 (default) prefers Gemini when its key is present, else Anthropic, else a clearly
 labelled rule-based fallback. The scoring engine, `/districts`, `/heatmap`,
 `/simulate` and `/investment` all work without any LLM key.
