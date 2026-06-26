@@ -8,6 +8,7 @@ import type {
   InvestmentResult,
   ScoreResult,
 } from "@/lib/types";
+import { Markdown } from "./Markdown";
 
 export function BriefingPanel({
   districtId,
@@ -74,7 +75,7 @@ export function BriefingPanel({
       </button>
 
       <p className="text-center text-[11px] text-muted">
-        Anthropic API, on demand only · grounded in the numbers above
+        On-demand AI · grounded in the numbers above
       </p>
 
       {error && (
@@ -102,9 +103,7 @@ export function BriefingPanel({
               )}
             </div>
           </div>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-            {briefing.briefing}
-          </p>
+          <Markdown>{briefing.briefing}</Markdown>
           <p className="border-t border-border pt-2 text-[10px] leading-snug text-muted">
             {briefing.disclaimer} · {briefing.model}
           </p>
