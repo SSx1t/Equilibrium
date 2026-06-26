@@ -28,14 +28,35 @@ await page.waitForTimeout(1200);
 const bodyText = (await page.textContent("body")) ?? "";
 const hasGapScore = bodyText.includes("Gap Score");
 
+// Check the ML investment panel rendered
+const afterSelect = (await page.textContent("body")) ?? "";
+const hasInvestment = afterSelect.includes("Investment outlook (ML)");
+const hasMLModel = afterSelect.includes("RandomForestRegressor") ||
+  /R²=/.test(afterSelect);
+
 // Move population slider to trigger a simulate call
 const slider = page.locator('input[type="range"]').first();
 if ((await slider.count()) > 0) {
   await slider.focus();
   for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowRight");
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(900);
 }
 const hasWhatIf = ((await page.textContent("body")) ?? "").includes("WHAT-IF");
+
+// Activate "Place on map" mode (healthcare) and click the map
+const placeBtn = page.getByRole("button", { name: "healthcare", exact: true });
+let placedPin = false;
+if ((await placeBtn.count()) > 0) {
+  await placeBtn.first().click();
+  await page.waitForTimeout(300);
+  const map = page.locator(".leaflet-container");
+  const box = await map.boundingBox();
+  if (box) {
+    await page.mouse.click(box.x + box.width * 0.45, box.y + box.height * 0.55);
+    await page.waitForTimeout(1200);
+  }
+  placedPin = (await page.locator("path.leaflet-interactive").count()) > 0;
+}
 
 await page.screenshot({ path: "/workspace/frontend/smoke.png", fullPage: false });
 
@@ -43,7 +64,10 @@ console.log(JSON.stringify(
   {
     hasDistricts,
     hasGapScore,
+    hasInvestment,
+    hasMLModel,
     hasWhatIf,
+    placedPin,
     consoleErrors: errors,
   },
   null,
