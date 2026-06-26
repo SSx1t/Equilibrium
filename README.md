@@ -244,9 +244,15 @@ They connect via `NEXT_PUBLIC_API_URL` (frontend → backend) and CORS
 
 **Frontend on Vercel:**
 1. Vercel → **Add New → Project** → import the repo.
-2. Set **Root Directory = `frontend`**.
-3. Add env var `NEXT_PUBLIC_API_URL = https://equilibrium-api.onrender.com`.
-4. Deploy. Done — fully functional.
+2. Set **Root Directory = `frontend`** (required — the Next.js app is not at repo root).
+3. Framework Preset should auto-detect **Next.js**.
+4. Add env var `NEXT_PUBLIC_API_URL = https://equilibrium-api.onrender.com`.
+5. Deploy. Done — fully functional.
+
+**If you see `404: NOT_FOUND` on Vercel:**
+- **Root Directory** is almost always the cause. Open **Project → Settings → General → Root Directory**, click **Edit**, choose **`frontend`**, save, then **Redeploy**.
+- Do **not** set `GITHUB_PAGES=true` on Vercel (that adds a `/equilibrium` basePath and makes `/` 404).
+- After changing Root Directory, trigger a fresh deploy (**Deployments → … → Redeploy**).
 
 ### Alternative: GitHub Pages (frontend) + Render (backend)
 
