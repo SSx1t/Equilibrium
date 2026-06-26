@@ -49,14 +49,25 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS - allow local Next.js dev origins. Tighten for production.
+# CORS - local dev origins plus any extra origins from ALLOWED_ORIGINS
+# (comma-separated). The regex also permits *.github.io / *.vercel.app /
+# *.netlify.app so the hosted frontend works out of the box.
+import os as _os
+
+_extra_origins = [
+    o.strip() for o in _os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        *_extra_origins,
     ],
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_origin_regex=(
+        r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
+        r"|https://([a-z0-9-]+\.)*(github\.io|vercel\.app|netlify\.app|onrender\.com)"
+    ),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -1,0 +1,22 @@
+# Render Blueprint for the Equilibrium FastAPI backend.
+# Deploy: push to GitHub, then in Render -> "New +" -> "Blueprint" -> pick this repo.
+# After it's live, copy the service URL into the frontend's NEXT_PUBLIC_API_URL.
+services:
+  - type: web
+    name: equilibrium-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.3"
+      # Set this in the Render dashboard (do NOT commit secrets).
+      - key: GEMINI_API_KEY
+        sync: false
+      # Optional: Anthropic instead of/in addition to Gemini.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: LLM_PROVIDER
+        value: auto

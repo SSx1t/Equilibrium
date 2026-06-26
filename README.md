@@ -187,6 +187,62 @@ The frontend must surface these as "what-if", never as recorded data.
 
 ---
 
+## Hosting the app full-stack
+
+The app is two pieces that **both** need hosting:
+
+1. **Frontend** — Next.js static export (`frontend/`). Can go on Vercel, Netlify,
+   GitHub Pages, S3/Cloudflare — anywhere static.
+2. **Backend** — FastAPI/Python (`backend/`). Needs a Python host (Render,
+   Railway, Fly.io, Cloud Run). **GitHub Pages cannot run this.**
+
+They connect via `NEXT_PUBLIC_API_URL` (frontend → backend) and CORS
+(`ALLOWED_ORIGINS` on the backend, which also auto-allows `*.vercel.app`,
+`*.github.io`, `*.netlify.app`, `*.onrender.com`).
+
+### Recommended: Vercel (frontend) + Render (backend)
+
+**Backend on Render** (a `render.yaml` blueprint is included):
+1. Push this repo to GitHub.
+2. Render → **New + → Blueprint** → select the repo → it reads `render.yaml`.
+3. Set `GEMINI_API_KEY` (and/or `ANTHROPIC_API_KEY`) in the Render dashboard.
+4. Deploy → you get a URL like `https://equilibrium-api.onrender.com`. Check
+   `…/health`.
+
+**Frontend on Vercel:**
+1. Vercel → **Add New → Project** → import the repo.
+2. Set **Root Directory = `frontend`**.
+3. Add env var `NEXT_PUBLIC_API_URL = https://equilibrium-api.onrender.com`.
+4. Deploy. Done — fully functional.
+
+### Alternative: GitHub Pages (frontend) + Render (backend)
+
+- The included workflow `.github/workflows/deploy-pages.yml` builds the static
+  frontend and deploys to Pages on every push to `main`.
+- **Enable it once:** repo **Settings → Pages → Build and deployment → Source =
+  GitHub Actions**.
+- Set the backend URL: repo **Settings → Secrets and variables → Actions →
+  Variables → New variable** `NEXT_PUBLIC_API_URL = https://…onrender.com`.
+- Site publishes at `https://<user>.github.io/equilibrium/` (the `/equilibrium`
+  basePath is applied automatically for Pages builds via `GITHUB_PAGES=true`).
+- Without the backend URL the page loads but shows "cannot reach the API".
+
+### Alternative: one container (backend) + any static host
+
+A portable `Dockerfile` builds the backend image for Railway/Fly.io/Cloud Run:
+
+```bash
+docker build -t equilibrium-api .
+docker run -p 8000:8000 -e GEMINI_API_KEY=... equilibrium-api
+```
+
+### Single-origin option (no CORS)
+
+Because the scoring/heatmap math is small and pure, it can be ported to Next.js
+route handlers (TypeScript) so the whole app deploys as one Vercel project. The
+ML investment model would still need the Python service (or a port to a JS ML
+lib). Flagged as a follow-up, not done here.
+
 ## Deploying alongside Vercel — the tradeoff (flagged, not silently chosen)
 
 The frontend will be Next.js on Vercel. Two viable options for this Python engine:
