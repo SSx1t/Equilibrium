@@ -244,9 +244,41 @@ They connect via `NEXT_PUBLIC_API_URL` (frontend → backend) and CORS
 
 **Frontend on Vercel:**
 1. Vercel → **Add New → Project** → import the repo.
-2. Set **Root Directory = `frontend`**.
-3. Add env var `NEXT_PUBLIC_API_URL = https://equilibrium-api.onrender.com`.
-4. Deploy. Done — fully functional.
+2. Set **Root Directory = `frontend`** (required — the Next.js app is not at repo root).
+3. Framework Preset should auto-detect **Next.js**.
+4. Add env var `NEXT_PUBLIC_API_URL = https://equilibrium-api.onrender.com`.
+5. Deploy. Done — fully functional.
+
+**If you see `404: NOT_FOUND` on Vercel:**
+- **Root Directory** is almost always the cause. Open **Project → Settings → General → Root Directory**, click **Edit**, choose **`frontend`**, save, then **Redeploy**.
+- Do **not** set `GITHUB_PAGES=true` on Vercel (that adds a `/equilibrium` basePath and makes `/` 404).
+- After changing Root Directory, trigger a fresh deploy (**Deployments → … → Redeploy**).
+
+### Cold starts (Render free tier) — handled, no blank screen
+
+Render's free plan sleeps the backend after ~15 min idle, so the first request
+can take ~50s to spin up. The frontend hides this completely:
+
+1. **Instant baseline.** A small (~25 KB) static snapshot of `/districts` +
+   `/heatmap` is bundled into the app (`frontend/src/data/snapshot.json`). The
+   map, choropleth, heatmap and district list render immediately — no spinner,
+   no blank page.
+2. **Background warm-up.** On load the app pings `/health` to wake the dyno, then
+   fetches live data with retry/backoff (a ~70s budget that outlasts the cold
+   start). When live data arrives it swaps in transparently.
+3. **Honest status.** A small "Waking the live engine…" pill shows while the
+   backend spins up; it disappears once live. Simulations also retry, so the
+   first what-if after wake-up succeeds instead of erroring.
+
+**Regenerate the snapshot** whenever you change scoring assumptions
+(`backend/config.py`) or the underlying CSVs:
+
+```bash
+PYTHONPATH=. python scripts/build_snapshot.py
+```
+
+> Tip: to avoid cold starts entirely, ping `…/health` every ~10 min with an
+> uptime monitor (e.g. UptimeRobot / cron-job.org), or upgrade off the free tier.
 
 ### Alternative: GitHub Pages (frontend) + Render (backend)
 

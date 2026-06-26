@@ -7,7 +7,9 @@ import type { NextConfig } from "next";
 //   natively — do NOT use `output: export` (it causes 404s on Vercel).
 // - On GitHub Pages (GITHUB_PAGES=true): emit a static export with a /<repo>
 //   basePath. Opt-in only, so Vercel/Netlify/etc. build at the root.
-const usePages = process.env.GITHUB_PAGES === "true";
+// Never apply GitHub Pages basePath/export on Vercel — that makes `/` return 404.
+const usePages =
+  process.env.GITHUB_PAGES === "true" && !process.env.VERCEL;
 const basePath = process.env.PAGES_BASE_PATH ?? "/equilibrium";
 
 const pagesConfig: NextConfig = {

@@ -22,7 +22,9 @@ import {
   getInvestment,
   simulate,
   simulateHeatmap,
+  warmUp,
 } from "@/lib/api";
+import { SNAPSHOT_DISTRICTS, SNAPSHOT_HEAT } from "@/lib/snapshot";
 import { gapColor, gapColorA } from "@/lib/color";
 import type {
   AmenityOverride,
@@ -54,9 +56,13 @@ export default function Home() {
   const [mode, setMode] = useState<BriefingMode>("planner");
   const [briefingSignal, setBriefingSignal] = useState(0);
 
-  const [districts, setDistricts] = useState<DistrictSummary[]>([]);
+  // Seed instantly from the bundled baseline snapshot so the map, choropleth and
+  // district list render with no blank screen while the API cold-starts.
+  const [districts, setDistricts] = useState<DistrictSummary[]>(SNAPSHOT_DISTRICTS);
   const [layer, setLayer] = useState<LayerMode>("choropleth");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // "live" once the real API has responded; "waking" while it cold-starts.
+  const [apiStatus, setApiStatus] = useState<"waking" | "live">("waking");
 
   const [simByDistrict, setSimByDistrict] = useState<Record<string, SimState>>({});
   const [resultByDistrict, setResultByDistrict] = useState<
@@ -68,22 +74,34 @@ export default function Home() {
   const [simLoading, setSimLoading] = useState(false);
   const [connError, setConnError] = useState<string | null>(null);
   const [placeMode, setPlaceMode] = useState<PlaceMode | null>(null);
-  const [heat, setHeat] = useState<HeatPoint[]>([]);
-  const [baseHeat, setBaseHeat] = useState<HeatPoint[]>([]);
+  const [heat, setHeat] = useState<HeatPoint[]>(SNAPSHOT_HEAT);
+  const [baseHeat, setBaseHeat] = useState<HeatPoint[]>(SNAPSHOT_HEAT);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
+      // Kick the sleeping backend awake immediately, then fetch live data with
+      // retry/backoff. The snapshot keeps the UI fully usable meanwhile, so the
+      // cold start is invisible — live data just swaps in when it arrives.
+      void warmUp();
       try {
         const [d, h] = await Promise.all([getDistricts(), getHeatmap()]);
+        if (cancelled) return;
         setDistricts(d.districts);
-        setHeat(h.points);
+        setHeat((cur) => (cur === SNAPSHOT_HEAT ? h.points : cur));
         setBaseHeat(h.points);
+        setApiStatus("live");
       } catch (e) {
+        if (cancelled) return;
+        // Only a hard failure after the full cold-start budget lands here.
         setConnError(
           e instanceof Error ? e.message : "Cannot reach the API server."
         );
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const selectedSim = selectedId
@@ -244,18 +262,25 @@ export default function Home() {
         <div className="flex min-h-0 flex-1">
           {/* Map */}
           <div className="relative min-w-0 flex-1">
-            {connError ? (
-              <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
-                <p className="text-sm font-medium text-bad">
-                  Cannot reach the scoring API
+            {/* Status pill: snapshot data is already on screen; this just tells
+                the user the live engine is warming up (or failed). */}
+            {apiStatus === "waking" && !connError && (
+              <div className="pointer-events-none absolute left-1/2 top-4 z-[1000] -translate-x-1/2 rounded-full border border-border bg-panel/95 px-4 py-1.5 text-xs font-medium text-muted card-shadow backdrop-blur">
+                <span className="mr-2 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-accent align-middle" />
+                Waking the live engine — showing baseline data…
+              </div>
+            )}
+            {connError && (
+              <div className="absolute left-1/2 top-4 z-[1000] -translate-x-1/2 rounded-lg border border-warn/40 bg-warn/10 px-4 py-2 text-center text-xs text-warn card-shadow backdrop-blur">
+                <p className="font-medium">
+                  Showing baseline data — live engine unreachable
                 </p>
-                <p className="max-w-md text-xs text-muted">
-                  {connError}. Make sure the FastAPI server is running on{" "}
-                  <code>localhost:8000</code>, or set{" "}
-                  <code>NEXT_PUBLIC_API_URL</code>.
+                <p className="mt-0.5 text-warn/80">
+                  Map &amp; scores are visible, but simulations need the API.
                 </p>
               </div>
-            ) : (
+            )}
+            {
               <>
                 {/* Layer toggle (top-right) */}
                 <div className="absolute right-4 top-4 z-[1000] flex rounded-lg border border-border bg-panel/95 p-0.5 text-xs card-shadow backdrop-blur">
@@ -295,7 +320,7 @@ export default function Home() {
                   </div>
                 )}
               </>
-            )}
+            }
           </div>
 
           {/* Sidebar */}
