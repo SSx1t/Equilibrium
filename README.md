@@ -4,7 +4,8 @@ Live demand-supply **Gap Score** engine for 20 Abu Dhabi districts, exposed via
 FastAPI so it can be recomputed on every user edit (add/remove an amenity, adjust
 population growth) in well under a second, plus a **Next.js + Leaflet** dashboard
 with a choropleth + heatmap map, instant what-if scoring, and an optional,
-**on-demand** AI briefing (Anthropic — the only place an LLM is touched).
+**on-demand** AI briefing (Google Gemini or Anthropic — the only place an LLM is
+touched).
 
 > **Backend** = Python scoring engine + FastAPI (`backend/`).
 > **Frontend** = Next.js dashboard (`frontend/`).
@@ -53,8 +54,11 @@ python3 scripts/test_scoring.py
 python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
-For the AI briefing only: `cp .env.example .env` and set `ANTHROPIC_API_KEY`.
-The scoring engine, `/districts`, `/heatmap`, and `/simulate` work without it.
+For the AI briefing only: `cp .env.example .env` and set **either** `GEMINI_API_KEY`
+(Google AI Studio, free tier) **or** `ANTHROPIC_API_KEY`. `LLM_PROVIDER=auto`
+(default) prefers Gemini when its key is present, else Anthropic, else a clearly
+labelled rule-based fallback. The scoring engine, `/districts`, `/heatmap`,
+`/simulate` and `/investment` all work without any LLM key.
 
 ---
 
@@ -65,7 +69,7 @@ The scoring engine, `/districts`, `/heatmap`, and `/simulate` work without it.
 | GET | `/districts` | – | all districts: baseline `gap_score`, lat/lon, name, supply breakdown |
 | GET | `/heatmap` | – | `{meta, count, points:[{lat,lon,weight}]}` |
 | POST | `/simulate` | `{district_id, amenity_overrides?, population_multiplier?}` | full `compute_gap_score()` result |
-| POST | `/briefing` | `{district_id, mode:"planner"\|"investor", current_score_state}` | Anthropic narrative (LLM call) |
+| POST | `/briefing` | `{district_id, mode:"planner"\|"investor", current_score_state}` | LLM narrative (Gemini or Anthropic) |
 
 `amenity_overrides` items: `{lat, lon, type, action:"add"|"remove"}` where `type`
 is a bucket (`healthcare/education/transit/retail/parks`) or a familiar amenity

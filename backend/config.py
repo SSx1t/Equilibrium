@@ -126,7 +126,14 @@ HEATMAP_BBOX_PAD_DEG = 0.01   # pad the bounding box slightly beyond extreme poi
 OVERRIDE_SUPPLY_WEIGHT = 10.0
 
 # ---------------------------------------------------------------------------
-# Anthropic / briefing
+# Briefing LLM providers
 # ---------------------------------------------------------------------------
+# Provider selection (env LLM_PROVIDER overrides): "auto" prefers Gemini when a
+# Gemini key is present, else Anthropic, else a rule-based template fallback.
+LLM_PROVIDER = "auto"  # "auto" | "gemini" | "anthropic"
+
 ANTHROPIC_MODEL = "claude-sonnet-4-6"
 ANTHROPIC_MAX_TOKENS = 900
+
+GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MAX_TOKENS = 1200

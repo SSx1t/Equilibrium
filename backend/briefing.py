@@ -109,22 +109,95 @@ INVESTOR_TASK = (
 )
 
 
+def _gemini_key() -> str | None:
+    return os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+
+
+def _select_provider() -> str | None:
+    """Resolve which LLM provider to use given env keys and LLM_PROVIDER."""
+    forced = os.environ.get("LLM_PROVIDER", config.LLM_PROVIDER).strip().lower()
+    has_gemini = bool(_gemini_key())
+    has_anthropic = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    if forced == "gemini":
+        return "gemini" if has_gemini else None
+    if forced == "anthropic":
+        return "anthropic" if has_anthropic else None
+    # auto: prefer Gemini (free tier), then Anthropic
+    if has_gemini:
+        return "gemini"
+    if has_anthropic:
+        return "anthropic"
+    return None
+
+
+def _call_anthropic(system: str, user_msg: str) -> str:
+    try:
+        import anthropic
+    except ImportError as e:  # pragma: no cover
+        raise BriefingError("anthropic package not installed") from e
+    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    resp = client.messages.create(
+        model=config.ANTHROPIC_MODEL,
+        max_tokens=config.ANTHROPIC_MAX_TOKENS,
+        system=system,
+        messages=[{"role": "user", "content": user_msg}],
+    )
+    return "".join(
+        block.text for block in resp.content
+        if getattr(block, "type", None) == "text"
+    ).strip()
+
+
+def _call_gemini(system: str, user_msg: str) -> str:
+    """Call the Gemini generateContent REST API (stdlib only, no extra dep).
+    Thinking is disabled for fast, deterministic briefings."""
+    import json as _json
+    import urllib.request
+
+    key = _gemini_key()
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{config.GEMINI_MODEL}:generateContent"
+    )
+    payload = {
+        "system_instruction": {"parts": [{"text": system}]},
+        "contents": [{"parts": [{"text": user_msg}]}],
+        "generationConfig": {
+            "maxOutputTokens": config.GEMINI_MAX_TOKENS,
+            "temperature": 0.7,
+            "thinkingConfig": {"thinkingBudget": 0},
+        },
+    }
+    req = urllib.request.Request(
+        url,
+        data=_json.dumps(payload).encode(),
+        headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=40) as r:
+        data = _json.loads(r.read())
+    candidates = data.get("candidates", [])
+    if not candidates:
+        raise BriefingError(f"Gemini returned no candidates: {data}")
+    parts = candidates[0].get("content", {}).get("parts", [])
+    text = "".join(p.get("text", "") for p in parts).strip()
+    if not text:
+        raise BriefingError(f"Gemini returned empty text (finishReason="
+                            f"{candidates[0].get('finishReason')})")
+    return text
+
+
 def generate_briefing(district_id: str, mode: str, current_score_state: dict[str, Any]) -> dict:
     mode = (mode or "planner").strip().lower()
     if mode not in ("planner", "investor"):
         raise BriefingError("mode must be 'planner' or 'investor'")
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
+    provider = _select_provider()
+    if provider is None:
         raise BriefingError(
-            "ANTHROPIC_API_KEY is not set. Add it to the environment (.env) to enable "
-            "the Generate Briefing feature."
+            "No LLM key set. Add GEMINI_API_KEY (free tier) or ANTHROPIC_API_KEY "
+            "to the environment (.env) to enable the Generate Briefing feature."
         )
-
-    try:
-        import anthropic
-    except ImportError as e:  # pragma: no cover
-        raise BriefingError("anthropic package not installed") from e
 
     system = PLANNER_SYSTEM if mode == "planner" else INVESTOR_SYSTEM
     task = PLANNER_TASK if mode == "planner" else INVESTOR_TASK
@@ -135,20 +208,14 @@ def generate_briefing(district_id: str, mode: str, current_score_state: dict[str
         f"=== CURRENT SCORE STATE (the only facts you may use) ===\n{digest}\n"
     )
 
-    client = anthropic.Anthropic(api_key=api_key)
     try:
-        resp = client.messages.create(
-            model=config.ANTHROPIC_MODEL,
-            max_tokens=config.ANTHROPIC_MAX_TOKENS,
-            system=system,
-            messages=[{"role": "user", "content": user_msg}],
-        )
-        text = "".join(
-            block.text for block in resp.content
-            if getattr(block, "type", None) == "text"
-        )
-        source = "anthropic"
-        model = config.ANTHROPIC_MODEL
+        if provider == "gemini":
+            text = _call_gemini(system, user_msg)
+            model = config.GEMINI_MODEL
+        else:
+            text = _call_anthropic(system, user_msg)
+            model = config.ANTHROPIC_MODEL
+        source = provider
     except Exception as e:  # noqa: BLE001
         # Graceful fallback so the demo never dead-ends (e.g. no API credits).
         text = _template_briefing(district_id, mode, current_score_state)
