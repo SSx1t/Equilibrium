@@ -1,0 +1,42 @@
+{
+ "meta": {
+  "source": "eVoost live UAE data API (real scraped listings)",
+  "fetched_at": "2026-06-26T11:46:00Z",
+  "total_usable_listings": 102,
+  "total_sale_listings": 51,
+  "districts_with_summary": 5,
+  "cleaning": "dropped null/zero price+area, price-based rent/sale guess, Abu Dhabi area filter"
+ },
+ "districts": {
+  "Saadiyat Island": {
+   "n_sale_listings": 10,
+   "median_price_per_sqm": 26110.0,
+   "p25_price_per_sqm": 20351.75,
+   "p75_price_per_sqm": 39741.75
+  },
+  "Yas Island": {
+   "n_sale_listings": 12,
+   "median_price_per_sqm": 22343.5,
+   "p25_price_per_sqm": 15616.25,
+   "p75_price_per_sqm": 24812.25
+  },
+  "Al Reem Island": {
+   "n_sale_listings": 10,
+   "median_price_per_sqm": 20145.0,
+   "p25_price_per_sqm": 17562.5,
+   "p75_price_per_sqm": 20722.5
+  },
+  "Al Raha Beach": {
+   "n_sale_listings": 12,
+   "median_price_per_sqm": 20635.0,
+   "p25_price_per_sqm": 18834.75,
+   "p75_price_per_sqm": 23919.5
+  },
+  "Corniche": {
+   "n_sale_listings": 3,
+   "median_price_per_sqm": 17361.0,
+   "p25_price_per_sqm": 14156.5,
+   "p75_price_per_sqm": 17361.0
+  }
+ }
+}
