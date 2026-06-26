@@ -1,13 +1,27 @@
-# Equilibrium — Abu Dhabi Demand-Supply Gap Simulator (backend)
+# Equilibrium — Abu Dhabi Demand-Supply Gap Simulator
 
 Live demand-supply **Gap Score** engine for 20 Abu Dhabi districts, exposed via
 FastAPI so it can be recomputed on every user edit (add/remove an amenity, adjust
-population growth) in well under a second. An optional, **on-demand** AI briefing
-(Anthropic) is the only place an LLM is touched.
+population growth) in well under a second, plus a **Next.js + Leaflet** dashboard
+with a choropleth + heatmap map, instant what-if scoring, and an optional,
+**on-demand** AI briefing (Anthropic — the only place an LLM is touched).
 
-> This repo currently contains **Steps 1–4** (data inspection, scoring engine,
-> heatmap layer, FastAPI service). The Next.js frontend is intentionally **not**
-> built yet (per Step 5).
+> **Backend** = Python scoring engine + FastAPI (`backend/`).
+> **Frontend** = Next.js dashboard (`frontend/`).
+
+## Run it (two terminals)
+
+```bash
+# 1) backend
+pip install -r requirements.txt        # add --break-system-packages on Debian/PEP-668
+python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+
+# 2) frontend
+cd frontend && npm install && npm run dev   # http://localhost:3000
+```
+
+The dashboard reads `NEXT_PUBLIC_API_URL` (default `http://localhost:8000`, see
+`frontend/.env.example`).
 
 ---
 
@@ -155,6 +169,35 @@ Vercel URL and run `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`.
 
 ---
 
+## Frontend (Next.js + Leaflet)
+
+A dark "control-room" dashboard:
+
+- **Map** with a layer toggle (Choropleth / Heatmap / Both):
+  - **Choropleth** = districts shaded by gap score. *Note:* the dataset has
+    district **centroids**, not official boundaries, so cells are a **Voronoi
+    approximation** from the centroids (clipped to a padded bbox). Clearly an
+    approximation, not surveyed borders.
+  - **Heatmap** = the sub-district service-pressure points from `/heatmap`.
+- **Detail panel** (click a district): gap score, demand index, 5 supply-adequacy
+  bars, and the itemised gap drivers.
+- **What-if simulation**: population-growth slider + per-bucket amenity ±
+  buttons → calls `/simulate` live (debounced) and recolours the district. Every
+  hypothetical state is tagged **WHAT-IF** and dashed on the map.
+- **Rankings** tab: all districts sorted by current gap score.
+- **AI briefing**: planner/investor toggle → `/briefing` (needs `ANTHROPIC_API_KEY`).
+
+```
+frontend/src/
+  app/page.tsx              # dashboard shell + state
+  components/MapView.tsx     # Leaflet: Voronoi choropleth + leaflet.heat layer
+  components/DistrictPanel.tsx
+  components/SimulationControls.tsx
+  components/BriefingPanel.tsx
+  components/Legend.tsx
+  lib/{api,types,color}.ts
+```
+
 ## Project layout
 
 ```
@@ -165,6 +208,7 @@ backend/
   heatmap.py       # grid pressure surface
   briefing.py      # Anthropic prompts (planner/investor) — only LLM touchpoint
   main.py          # FastAPI app + CORS
+frontend/          # Next.js + Leaflet dashboard
 data/              # the 7 CSVs + generated heatmap_points.json
 scripts/           # inspect_data, calibrate, test_scoring, build_heatmap
 ```
