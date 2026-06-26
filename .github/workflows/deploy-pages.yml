@@ -1,8 +1,9 @@
 name: Deploy frontend to GitHub Pages
 
+# Manual-only: the project deploys the frontend on Vercel. This workflow is kept
+# as an optional alternative (run it from the Actions tab) and requires Pages to
+# be enabled (Settings -> Pages -> Source: GitHub Actions).
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
