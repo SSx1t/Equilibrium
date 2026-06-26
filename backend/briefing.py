@@ -47,6 +47,30 @@ def _summarise_state(district_id: str, state: dict[str, Any]) -> str:
         if nonzero:
             lines.append(f"User-hypothetical amenity edits applied: {json.dumps(nonzero)}")
         lines.append(f"Hypothetical scenario: {meta.get('is_hypothetical')} - {meta.get('hypothetical_note')}")
+
+    inv = state.get("investment")
+    if inv:
+        ml = inv.get("ml", {})
+        lines.append("--- ML investment model (RandomForest price model + score layer) ---")
+        lines.append(
+            f"Investment score: {inv.get('investment_score')}/100 ({inv.get('rating')}); "
+            f"opportunity: {inv.get('opportunity_score')}; risk: {inv.get('risk_score')}; "
+            f"scenario shift vs baseline: {inv.get('scenario_delta')} pts"
+        )
+        lines.append(
+            f"ML expected price/sqm: AED {ml.get('expected_price_per_sqm_aed'):,}; "
+            f"gross yield: {ml.get('gross_yield_pct')}%; "
+            f"expected annual rent/sqm: AED {ml.get('expected_annual_rent_per_sqm_aed'):,}; "
+            f"payback: {ml.get('payback_years')} yrs "
+            f"(model R2={ml.get('model_metrics',{}).get('r2')})"
+        )
+        rm = inv.get("real_market")
+        if rm:
+            lines.append(
+                f"Real market check ({rm.get('n_real_sale_listings')} live listings): "
+                f"real median AED {rm.get('real_median_price_per_sqm'):,}/sqm; "
+                f"model is {rm.get('model_vs_real_pct')}% vs real ({rm.get('verdict')})."
+            )
     return "\n".join(lines)
 
 
@@ -75,11 +99,13 @@ PLANNER_TASK = (
 )
 
 INVESTOR_TASK = (
-    "Write an investor briefing (<=200 words) with: (1) the opportunity - what the "
-    "demand-supply gap implies for development/asset upside; (2) the risk - what the "
-    "deficits and demand level imply; (3) if hypothetical edits (new amenities / "
-    "population growth) are present, how they shift the investment case versus baseline. "
-    "Frame around the actual numbers provided."
+    "Write an investor briefing (<=200 words) grounded in the ML investment model "
+    "numbers provided (investment score, opportunity, risk, ML expected price/sqm, "
+    "yield, payback, and the real-market check). Cover: (1) the opportunity - what the "
+    "demand-supply gap and value-add upside imply; (2) the risk - what the deficits, "
+    "demand and service-strain imply; (3) how any hypothetical edits (new amenities / "
+    "population growth) shift the investment case versus baseline, citing the "
+    "scenario-shift figure. Note when the ML valuation diverges from the real market."
 )
 
 

@@ -28,12 +28,25 @@ from . import config
 from .briefing import BriefingError, generate_briefing
 from .data_loader import get_store
 from .heatmap import compute_heatmap_points, heatmap_meta
+from .ml_investment import evaluate_investment, get_model
 from .scoring import compute_gap_score
+
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Warm the data + ML model so the first request is fast.
+    get_store()
+    get_model()
+    yield
+
 
 app = FastAPI(
     title="Equilibrium - Abu Dhabi Demand-Supply Gap Simulator",
-    version="1.0.0",
-    description="Live district gap scoring + sub-district pressure heatmap.",
+    version="1.1.0",
+    description="Live district gap scoring + sub-district pressure heatmap + ML investment.",
+    lifespan=lifespan,
 )
 
 # CORS - allow local Next.js dev origins. Tighten for production.
@@ -67,6 +80,16 @@ class SimulateRequest(BaseModel):
     district_id: str
     amenity_overrides: Optional[list[AmenityOverride]] = None
     population_multiplier: float = 1.0
+
+
+class InvestmentRequest(BaseModel):
+    district_id: str
+    amenity_overrides: Optional[list[AmenityOverride]] = None
+    population_multiplier: float = 1.0
+
+
+class HeatmapSimRequest(BaseModel):
+    amenity_overrides: Optional[list[AmenityOverride]] = None
 
 
 class BriefingRequest(BaseModel):
@@ -145,6 +168,39 @@ def simulate(req: SimulateRequest):
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return result
+
+
+@app.post("/investment")
+def investment(req: InvestmentRequest):
+    """ML-driven investment outlook for a district, live with what-if edits."""
+    overrides = [o.model_dump() for o in (req.amenity_overrides or [])]
+    try:
+        return evaluate_investment(
+            district_id=req.district_id,
+            amenity_overrides=overrides,
+            population_multiplier=req.population_multiplier,
+        )
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.post("/heatmap/simulate")
+def heatmap_simulate(req: HeatmapSimRequest):
+    """Recompute the pressure heatmap with user-placed amenities relieving
+    (add) or adding (remove) local service pressure at their real coordinates."""
+    extra: list[tuple[float, float]] = []
+    removed: list[tuple[float, float]] = []
+    for o in req.amenity_overrides or []:
+        if o.action == "add":
+            extra.append((o.lat, o.lon))
+        elif o.action == "remove":
+            removed.append((o.lat, o.lon))
+    points = compute_heatmap_points(extra_supply=extra, removed_supply=removed)
+    return {
+        "meta": {**heatmap_meta(), "is_hypothetical": bool(extra or removed)},
+        "count": len(points),
+        "points": points,
+    }
 
 
 @app.post("/briefing")

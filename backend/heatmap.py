@@ -41,8 +41,47 @@ def _normalise(grid: np.ndarray) -> np.ndarray:
     return grid / mx if mx > 0 else grid
 
 
-def compute_heatmap_points() -> list[dict]:
-    """Return a list of {lat, lon, weight} sub-district pressure points."""
+def _apply_supply_overrides(
+    lats: np.ndarray,
+    lons: np.ndarray,
+    extra_supply: list[tuple[float, float]] | None,
+    removed_supply: list[tuple[float, float]] | None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Add user-placed amenity points (with extra local weight) to the supply
+    set, and drop the nearest existing supply point for each removed amenity
+    (within ~1.5 km). Returns (lats, lons, weights)."""
+    lats = lats.copy()
+    lons = lons.copy()
+    weights = np.ones(len(lats))
+    if removed_supply:
+        for rlat, rlon in removed_supply:
+            if len(lats) == 0:
+                break
+            d2 = (lats - rlat) ** 2 + (lons - rlon) ** 2
+            j = int(np.argmin(d2))
+            if d2[j] <= 0.0135**2:  # ~1.5 km
+                lats = np.delete(lats, j)
+                lons = np.delete(lons, j)
+                weights = np.delete(weights, j)
+    if extra_supply:
+        add_lat = np.array([p[0] for p in extra_supply])
+        add_lon = np.array([p[1] for p in extra_supply])
+        add_w = np.full(len(extra_supply), config.OVERRIDE_SUPPLY_WEIGHT)
+        lats = np.concatenate([lats, add_lat])
+        lons = np.concatenate([lons, add_lon])
+        weights = np.concatenate([weights, add_w])
+    return lats, lons, weights
+
+
+def compute_heatmap_points(
+    extra_supply: list[tuple[float, float]] | None = None,
+    removed_supply: list[tuple[float, float]] | None = None,
+) -> list[dict]:
+    """Return a list of {lat, lon, weight} sub-district pressure points.
+
+    extra_supply / removed_supply let user-placed (hypothetical) amenities
+    relieve or add local service pressure at their real coordinates, giving a
+    sub-district view (e.g. a clinic dropped in a specific part of Mussafah)."""
     store = get_store()
 
     am = store.amenities
@@ -72,10 +111,16 @@ def compute_heatmap_points() -> list[dict]:
     # --- SUPPLY grid: mapped-amenity point density (5 buckets only) ---
     buckets = np.array([_bucket_for(c, s) for c, s in zip(am["category"], am["subtype"])])
     mask = buckets != None  # noqa: E711  (object array, need != None not "is not")
+    sup_lat = am["latitude"].to_numpy()[mask]
+    sup_lon = am["longitude"].to_numpy()[mask]
+    sup_lat, sup_lon, sup_w = _apply_supply_overrides(
+        sup_lat, sup_lon, extra_supply, removed_supply
+    )
     supply_grid, _, _ = np.histogram2d(
-        am["latitude"].to_numpy()[mask],
-        am["longitude"].to_numpy()[mask],
+        sup_lat,
+        sup_lon,
         bins=[lat_edges, lon_edges],
+        weights=sup_w,
     )
 
     r = config.SMOOTHING_RADIUS_CELLS

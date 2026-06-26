@@ -120,6 +120,10 @@ GRID_CELL_DEG = 0.01          # ~1.1 km cells (latitude degrees)
 SMOOTHING_RADIUS_CELLS = 1    # box-blur radius in cells applied to demand & supply
 HEATMAP_MIN_WEIGHT = 0.05     # drop near-zero-pressure cells from the output
 HEATMAP_BBOX_PAD_DEG = 0.01   # pad the bounding box slightly beyond extreme points
+# A user-placed (hypothetical) amenity represents a meaningful new facility, so
+# it relieves local pressure as if it were this many existing amenities. Raise
+# for a stronger visible local effect.
+OVERRIDE_SUPPLY_WEIGHT = 10.0
 
 # ---------------------------------------------------------------------------
 # Anthropic / briefing
