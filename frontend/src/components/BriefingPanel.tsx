@@ -2,14 +2,21 @@
 
 import { useState } from "react";
 import { getBriefing } from "@/lib/api";
-import type { BriefingMode, BriefingResponse, ScoreResult } from "@/lib/types";
+import type {
+  BriefingMode,
+  BriefingResponse,
+  InvestmentResult,
+  ScoreResult,
+} from "@/lib/types";
 
 export function BriefingPanel({
   districtId,
   result,
+  investment,
 }: {
   districtId: string | null;
   result: ScoreResult | null;
+  investment: InvestmentResult | null;
 }) {
   const [mode, setMode] = useState<BriefingMode>("planner");
   const [loading, setLoading] = useState(false);
@@ -24,7 +31,11 @@ export function BriefingPanel({
     setError(null);
     setBriefing(null);
     try {
-      const res = await getBriefing(districtId, mode, result);
+      const stateWithInvestment = {
+        ...result,
+        investment: investment ?? undefined,
+      } as ScoreResult;
+      const res = await getBriefing(districtId, mode, stateWithInvestment);
       setBriefing(res);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Briefing failed.");

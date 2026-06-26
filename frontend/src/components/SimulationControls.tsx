@@ -32,16 +32,25 @@ function netDelta(overrides: AmenityOverride[], bucket: Bucket): number {
   }, 0);
 }
 
+export interface PlaceMode {
+  type: Bucket;
+  action: "add" | "remove";
+}
+
 export function SimulationControls({
   state,
   center,
   onChange,
   disabled,
+  placeMode,
+  onSetPlaceMode,
 }: {
   state: SimState;
   center: { lat: number; lon: number } | null;
   onChange: (next: SimState) => void;
   disabled: boolean;
+  placeMode: PlaceMode | null;
+  onSetPlaceMode: (m: PlaceMode | null) => void;
 }) {
   const isDirty =
     state.populationMultiplier !== 1 || state.overrides.length > 0;
@@ -151,10 +160,77 @@ export function SimulationControls({
         })}
       </div>
 
+      {/* Place precisely on the map (sub-district) */}
+      <div className="space-y-2 rounded-lg border border-border bg-panel-2/50 p-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-foreground/90">Place on map</span>
+          {placeMode && (
+            <button
+              type="button"
+              onClick={() => onSetPlaceMode(null)}
+              className="text-[11px] text-muted hover:text-foreground"
+            >
+              cancel
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-5 gap-1">
+          {BUCKETS.map((b) => {
+            const active = placeMode?.type === b;
+            return (
+              <button
+                key={b}
+                type="button"
+                disabled={disabled}
+                onClick={() =>
+                  onSetPlaceMode(
+                    active ? null : { type: b, action: placeMode?.action ?? "add" }
+                  )
+                }
+                className={`rounded-md border px-1 py-1.5 text-[10px] font-medium capitalize transition-colors ${
+                  active
+                    ? "border-accent bg-accent/15 text-accent"
+                    : "border-border text-muted hover:text-foreground"
+                }`}
+              >
+                {b}
+              </button>
+            );
+          })}
+        </div>
+        {placeMode && (
+          <>
+            <div className="flex rounded-md border border-border p-0.5 text-[11px]">
+              {(["add", "remove"] as const).map((a) => (
+                <button
+                  key={a}
+                  type="button"
+                  onClick={() => onSetPlaceMode({ ...placeMode, action: a })}
+                  className={`flex-1 rounded py-1 font-medium capitalize ${
+                    placeMode.action === a
+                      ? "bg-accent text-[#06243a]"
+                      : "text-muted"
+                  }`}
+                >
+                  {a}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] leading-snug text-amber-300">
+              Click anywhere on the map to {placeMode.action} a {placeMode.type}{" "}
+              at that exact spot.
+            </p>
+          </>
+        )}
+      </div>
+
       {isDirty && (
         <button
           type="button"
-          onClick={() => onChange(DEFAULT_SIM)}
+          onClick={() => {
+            onChange(DEFAULT_SIM);
+            onSetPlaceMode(null);
+          }}
           className="w-full rounded-lg border border-border bg-panel-2 py-2 text-xs font-medium text-foreground/80 hover:bg-border"
         >
           Reset to baseline

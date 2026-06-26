@@ -1,8 +1,10 @@
 import type {
+  AmenityOverride,
   BriefingMode,
   BriefingResponse,
   DistrictsResponse,
   HeatmapResponse,
+  InvestmentResult,
   ScoreResult,
   SimulateRequest,
 } from "./types";
@@ -39,6 +41,10 @@ export const getDistricts = () => getJSON<DistrictsResponse>("/districts");
 export const getHeatmap = () => getJSON<HeatmapResponse>("/heatmap");
 export const simulate = (req: SimulateRequest) =>
   postJSON<ScoreResult>("/simulate", req);
+export const getInvestment = (req: SimulateRequest) =>
+  postJSON<InvestmentResult>("/investment", req);
+export const simulateHeatmap = (amenity_overrides: AmenityOverride[]) =>
+  postJSON<HeatmapResponse>("/heatmap/simulate", { amenity_overrides });
 export const getBriefing = (
   district_id: string,
   mode: BriefingMode,

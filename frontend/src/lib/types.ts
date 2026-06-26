@@ -88,6 +88,41 @@ export interface SimulateRequest {
   population_multiplier?: number;
 }
 
+export interface InvestmentResult {
+  district_id: string;
+  ml: {
+    expected_price_per_sqm_aed: number;
+    expected_annual_rent_per_sqm_aed: number;
+    gross_yield_pct: number;
+    payback_years: number | null;
+    model_metrics: {
+      model: string;
+      target: string;
+      n_train: number;
+      n_test: number;
+      r2: number;
+      mae_aed: number;
+    };
+    top_features: { feature: string; importance: number }[];
+  };
+  investment_score: number;
+  opportunity_score: number;
+  risk_score: number;
+  rating: string;
+  score_components: Record<string, number>;
+  baseline_investment_score: number;
+  scenario_delta: number;
+  is_hypothetical: boolean;
+  real_market: {
+    n_real_sale_listings: number;
+    real_median_price_per_sqm: number;
+    model_vs_real_pct: number;
+    verdict: string;
+  } | null;
+  real_market_meta: Record<string, unknown> | null;
+  note: string;
+}
+
 export type BriefingMode = "planner" | "investor";
 
 export interface BriefingResponse {

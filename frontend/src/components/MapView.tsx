@@ -5,16 +5,27 @@ import L from "leaflet";
 import "leaflet.heat";
 import { useEffect, useMemo, useRef } from "react";
 import {
+  CircleMarker,
   MapContainer,
   Polygon,
+  Popup,
   TileLayer,
   Tooltip,
   useMap,
+  useMapEvents,
 } from "react-leaflet";
 import { gapColor } from "@/lib/color";
 import type { DistrictSummary, HeatPoint } from "@/lib/types";
 
 export type LayerMode = "choropleth" | "heatmap" | "both";
+
+export interface PlacedPin {
+  lat: number;
+  lon: number;
+  type: string;
+  district: string;
+  action: "add" | "remove";
+}
 
 interface Props {
   districts: DistrictSummary[];
@@ -24,6 +35,32 @@ interface Props {
   layer: LayerMode;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  placeActive: boolean;
+  onMapClick: (lat: number, lon: number) => void;
+  pins: PlacedPin[];
+}
+
+function ClickCapture({
+  active,
+  onClick,
+}: {
+  active: boolean;
+  onClick: (lat: number, lon: number) => void;
+}) {
+  const map = useMap();
+  useMapEvents({
+    click(e) {
+      if (active) onClick(e.latlng.lat, e.latlng.lng);
+    },
+  });
+  useEffect(() => {
+    const el = map.getContainer();
+    el.style.cursor = active ? "crosshair" : "";
+    return () => {
+      el.style.cursor = "";
+    };
+  }, [active, map]);
+  return null;
 }
 
 const AD_CENTER: [number, number] = [24.45, 54.5];
@@ -85,6 +122,9 @@ export default function MapView({
   layer,
   selectedId,
   onSelect,
+  placeActive,
+  onMapClick,
+  pins,
 }: Props) {
   // Build Voronoi cells from district centroids, clipped to a padded bbox.
   const cells = useMemo(() => {
@@ -159,6 +199,39 @@ export default function MapView({
         })}
 
       <HeatLayer points={heatPoints} visible={showHeat} />
+
+      <ClickCapture active={placeActive} onClick={onMapClick} />
+
+      {pins.map((p, i) => (
+        <CircleMarker
+          key={`${p.district}-${i}-${p.lat}-${p.lon}`}
+          center={[p.lat, p.lon]}
+          radius={7}
+          pathOptions={{
+            color: "#ffffff",
+            weight: 2,
+            fillColor: p.action === "add" ? "#22d3ee" : "#ef4444",
+            fillOpacity: 0.95,
+          }}
+        >
+          <Tooltip direction="top" offset={[0, -6]}>
+            <span style={{ fontWeight: 600 }}>
+              {p.action === "add" ? "+ " : "− "}
+              {p.type}
+            </span>{" "}
+            (what-if) · {p.district}
+          </Tooltip>
+          <Popup>
+            <div style={{ fontWeight: 600 }}>
+              Hypothetical {p.type} ({p.action})
+            </div>
+            <div>{p.district}</div>
+            <div style={{ fontSize: 11, opacity: 0.7 }}>
+              {p.lat.toFixed(4)}, {p.lon.toFixed(4)}
+            </div>
+          </Popup>
+        </CircleMarker>
+      ))}
     </MapContainer>
   );
 }

@@ -4,18 +4,28 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BriefingPanel } from "@/components/BriefingPanel";
 import { DistrictPanel } from "@/components/DistrictPanel";
+import { InvestmentPanel } from "@/components/InvestmentPanel";
 import { Legend } from "@/components/Legend";
-import type { LayerMode } from "@/components/MapView";
+import type { LayerMode, PlacedPin } from "@/components/MapView";
 import {
   DEFAULT_SIM,
+  type PlaceMode,
   SimulationControls,
   type SimState,
 } from "@/components/SimulationControls";
-import { getDistricts, getHeatmap, simulate } from "@/lib/api";
+import {
+  getDistricts,
+  getHeatmap,
+  getInvestment,
+  simulate,
+  simulateHeatmap,
+} from "@/lib/api";
 import { gapColor } from "@/lib/color";
 import type {
+  AmenityOverride,
   DistrictSummary,
   HeatPoint,
+  InvestmentResult,
   ScoreResult,
 } from "@/lib/types";
 
@@ -49,8 +59,14 @@ export default function Home() {
   const [resultByDistrict, setResultByDistrict] = useState<
     Record<string, ScoreResult>
   >({});
+  const [investByDistrict, setInvestByDistrict] = useState<
+    Record<string, InvestmentResult>
+  >({});
   const [simLoading, setSimLoading] = useState(false);
   const [connError, setConnError] = useState<string | null>(null);
+  const [placeMode, setPlaceMode] = useState<PlaceMode | null>(null);
+
+  const [baseHeat, setBaseHeat] = useState<HeatPoint[]>([]);
 
   // Initial data load
   useEffect(() => {
@@ -59,6 +75,7 @@ export default function Home() {
         const [d, h] = await Promise.all([getDistricts(), getHeatmap()]);
         setDistricts(d.districts);
         setHeat(h.points);
+        setBaseHeat(h.points);
       } catch (e) {
         setConnError(
           e instanceof Error ? e.message : "Cannot reach the API server."
@@ -78,15 +95,20 @@ export default function Home() {
     if (!selectedId) return;
     const myReq = ++reqIdRef.current;
     setSimLoading(true);
+    const body = {
+      district_id: selectedId,
+      amenity_overrides: selectedSim.overrides,
+      population_multiplier: selectedSim.populationMultiplier,
+    };
     const t = setTimeout(async () => {
       try {
-        const res = await simulate({
-          district_id: selectedId,
-          amenity_overrides: selectedSim.overrides,
-          population_multiplier: selectedSim.populationMultiplier,
-        });
+        const [res, inv] = await Promise.all([
+          simulate(body),
+          getInvestment(body),
+        ]);
         if (myReq === reqIdRef.current) {
           setResultByDistrict((prev) => ({ ...prev, [selectedId]: res }));
+          setInvestByDistrict((prev) => ({ ...prev, [selectedId]: inv }));
         }
       } catch {
         /* keep previous result on transient error */
@@ -97,6 +119,96 @@ export default function Home() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, selectedSimKey]);
+
+  // All hypothetical overrides across every district (for pins + heatmap).
+  const allOverrides = useMemo<AmenityOverride[]>(() => {
+    const out: AmenityOverride[] = [];
+    for (const sim of Object.values(simByDistrict)) {
+      out.push(...sim.overrides);
+    }
+    return out;
+  }, [simByDistrict]);
+
+  const pins = useMemo<PlacedPin[]>(() => {
+    const out: PlacedPin[] = [];
+    for (const [district, sim] of Object.entries(simByDistrict)) {
+      for (const o of sim.overrides) {
+        out.push({
+          lat: o.lat,
+          lon: o.lon,
+          type: o.type,
+          district,
+          action: o.action,
+        });
+      }
+    }
+    return out;
+  }, [simByDistrict]);
+
+  // Recompute the heatmap with placed amenities relieving local pressure.
+  const overridesKey = JSON.stringify(allOverrides);
+  useEffect(() => {
+    if (allOverrides.length === 0) {
+      setHeat(baseHeat);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const h = await simulateHeatmap(allOverrides);
+        if (!cancelled) setHeat(h.points);
+      } catch {
+        /* keep current heat */
+      }
+    }, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overridesKey, baseHeat]);
+
+  // Nearest district centroid for a clicked map point.
+  const nearestDistrict = useCallback(
+    (lat: number, lon: number): DistrictSummary | null => {
+      let best: DistrictSummary | null = null;
+      let bestD = Infinity;
+      for (const d of districts) {
+        const dd = (d.lat - lat) ** 2 + (d.lon - lon) ** 2;
+        if (dd < bestD) {
+          bestD = dd;
+          best = d;
+        }
+      }
+      return best;
+    },
+    [districts]
+  );
+
+  const handleMapClick = useCallback(
+    (lat: number, lon: number) => {
+      if (!placeMode) return;
+      const d = nearestDistrict(lat, lon);
+      if (!d) return;
+      const id = d.district_id;
+      setSimByDistrict((prev) => {
+        const cur = prev[id] ?? DEFAULT_SIM;
+        return {
+          ...prev,
+          [id]: {
+            ...cur,
+            overrides: [
+              ...cur.overrides,
+              { lat, lon, type: placeMode.type, action: placeMode.action },
+            ],
+          },
+        };
+      });
+      setSelectedId(id);
+      setTab("detail");
+    },
+    [placeMode, nearestDistrict]
+  );
 
   const scoresById = useMemo(() => {
     const m: Record<string, number> = {};
@@ -196,8 +308,16 @@ export default function Home() {
                 layer={layer}
                 selectedId={selectedId}
                 onSelect={handleSelect}
+                placeActive={placeMode !== null}
+                onMapClick={handleMapClick}
+                pins={pins}
               />
               <Legend layer={layer} />
+              {placeMode && (
+                <div className="pointer-events-none absolute left-1/2 top-4 z-[1000] -translate-x-1/2 rounded-full border border-accent/50 bg-panel/95 px-4 py-1.5 text-xs font-medium text-accent backdrop-blur">
+                  Click the map to {placeMode.action} a {placeMode.type} (what-if)
+                </div>
+              )}
             </>
           )}
         </div>
@@ -247,11 +367,18 @@ export default function Home() {
                           [selectedId]: next,
                         }))
                       }
-                      disabled={simLoading && false}
+                      disabled={false}
+                      placeMode={placeMode}
+                      onSetPlaceMode={setPlaceMode}
+                    />
+                    <InvestmentPanel
+                      data={investByDistrict[selectedId] ?? null}
+                      loading={simLoading}
                     />
                     <BriefingPanel
                       districtId={selectedId}
                       result={selectedResult ?? null}
+                      investment={investByDistrict[selectedId] ?? null}
                     />
                   </>
                 )}

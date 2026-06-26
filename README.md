@@ -82,6 +82,48 @@ curl -X POST localhost:8000/simulate -H 'Content-Type: application/json' -d '{
 
 ---
 
+## ML investment model + live real data
+
+The **investor figures are ML-driven and update live** with the simulation:
+
+- **`backend/ml_investment.py`** trains a real `scikit-learn` **RandomForestRegressor**
+  on the 5,000 synthetic transactions joined with district features (incl. the
+  live gap score, demand, supply, yield, infrastructure) to predict
+  **price_per_sqm** — R² ≈ 0.87, MAE ≈ AED 1,570. Feature importances are
+  reported, so the valuation is explainable (top drivers: base sale price, unit
+  size, infrastructure).
+- An explainable **score layer** turns the ML valuation + real economics into an
+  **Investment Score (0-100)**, **Opportunity Score** (value-add upside behind a
+  closable gap) and **Risk Score**. Per the brief, a worse (higher) gap lowers
+  current attractiveness while raising opportunity. Every simulation returns a
+  **`scenario_delta`** = how the what-if shifts the investment case vs baseline.
+- **Real eVoost market data** (`scripts/fetch_evoost.py`) pulls live Abu Dhabi
+  listings, applies the connector's cleaning (rent/sale mislabel, Sharjah leak,
+  null fields), and caches a per-district sale-price summary. The investment
+  panel **reconciles the ML price against the real market** ("model is −3% vs
+  real → potential value"). Cached to `data/evoost_*.json`; the API never calls
+  the live endpoint at request time. If no key/cache, it falls back to the
+  synthetic-only valuation and says so.
+
+Endpoints added: `POST /investment` (same body as `/simulate`) and
+`POST /heatmap/simulate` (heatmap recomputed with placed amenities relieving
+local pressure). To refresh real data:
+
+```bash
+export UAE_DATA_API_KEY="uae_..."
+python3 scripts/fetch_evoost.py
+```
+
+## Location-specific amenities (sub-district)
+
+Beyond the per-district ± buttons, you can **place an amenity at an exact spot**
+("Place on map" → pick a type → click the map, e.g. drop a clinic in a specific
+part of Mussafah). The pin is attributed to the containing district, feeds the
+district gap score, and — via `/heatmap/simulate` — **relieves local service
+pressure around that exact location** on the heatmap (a placed facility carries
+`OVERRIDE_SUPPLY_WEIGHT` local weight, configurable in `config.py`). All placed
+amenities are user-hypothetical (cyan/red pins, WHAT-IF tags).
+
 ## Scoring model (how every number is derived)
 
 For a district, with `pop = baseline_population × population_multiplier`:
