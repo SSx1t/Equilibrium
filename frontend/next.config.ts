@@ -1,20 +1,25 @@
 import type { NextConfig } from "next";
 
 // The app is a fully client-rendered SPA that talks to the FastAPI backend over
-// NEXT_PUBLIC_API_URL, so it can be deployed as a static export anywhere.
+// NEXT_PUBLIC_API_URL.
 //
-// GitHub Pages (project site) needs a basePath of /<repo>. That is opt-in via
-// GITHUB_PAGES=true so other hosts (Vercel, Netlify, Render static, S3) build
-// at the root with no basePath.
+// - On Vercel (default): build Next.js normally. Vercel handles routing/hosting
+//   natively — do NOT use `output: export` (it causes 404s on Vercel).
+// - On GitHub Pages (GITHUB_PAGES=true): emit a static export with a /<repo>
+//   basePath. Opt-in only, so Vercel/Netlify/etc. build at the root.
 const usePages = process.env.GITHUB_PAGES === "true";
 const basePath = process.env.PAGES_BASE_PATH ?? "/equilibrium";
 
-const nextConfig: NextConfig = {
+const pagesConfig: NextConfig = {
   output: "export",
-  images: { unoptimized: true },
-  basePath: usePages ? basePath : "",
-  assetPrefix: usePages ? `${basePath}/` : "",
+  basePath,
+  assetPrefix: `${basePath}/`,
   trailingSlash: true,
+};
+
+const nextConfig: NextConfig = {
+  images: { unoptimized: true },
+  ...(usePages ? pagesConfig : {}),
 };
 
 export default nextConfig;
