@@ -38,6 +38,9 @@ yarn-error.log*
 /smoke.png
 /smoke-light.png
 /smoke-dark.png
+/smoke-reports.png
+/test-report.pdf
+/test-investor.pdf
 
 # vercel
 .vercel
