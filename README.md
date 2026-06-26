@@ -254,6 +254,32 @@ They connect via `NEXT_PUBLIC_API_URL` (frontend → backend) and CORS
 - Do **not** set `GITHUB_PAGES=true` on Vercel (that adds a `/equilibrium` basePath and makes `/` 404).
 - After changing Root Directory, trigger a fresh deploy (**Deployments → … → Redeploy**).
 
+### Cold starts (Render free tier) — handled, no blank screen
+
+Render's free plan sleeps the backend after ~15 min idle, so the first request
+can take ~50s to spin up. The frontend hides this completely:
+
+1. **Instant baseline.** A small (~25 KB) static snapshot of `/districts` +
+   `/heatmap` is bundled into the app (`frontend/src/data/snapshot.json`). The
+   map, choropleth, heatmap and district list render immediately — no spinner,
+   no blank page.
+2. **Background warm-up.** On load the app pings `/health` to wake the dyno, then
+   fetches live data with retry/backoff (a ~70s budget that outlasts the cold
+   start). When live data arrives it swaps in transparently.
+3. **Honest status.** A small "Waking the live engine…" pill shows while the
+   backend spins up; it disappears once live. Simulations also retry, so the
+   first what-if after wake-up succeeds instead of erroring.
+
+**Regenerate the snapshot** whenever you change scoring assumptions
+(`backend/config.py`) or the underlying CSVs:
+
+```bash
+PYTHONPATH=. python scripts/build_snapshot.py
+```
+
+> Tip: to avoid cold starts entirely, ping `…/health` every ~10 min with an
+> uptime monitor (e.g. UptimeRobot / cron-job.org), or upgrade off the free tier.
+
 ### Alternative: GitHub Pages (frontend) + Render (backend)
 
 - The included workflow `.github/workflows/deploy-pages.yml` builds the static
